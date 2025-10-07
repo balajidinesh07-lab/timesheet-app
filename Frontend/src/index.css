@@ -6,3 +6,22 @@
 body {
   @apply bg-gray-50;
 }
+/* index.css (append) */
+
+/* Cursor blob */
+#cursor-blob {
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgba(99,102,241,0.35), rgba(99,102,241,0.12));
+  transform: translate(-50%, -50%) scale(0.8);
+  transition: transform 200ms ease, opacity 250ms ease, background 250ms ease;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* hide if user doesn't want custom cursor on mobile */
+@media (hover: none) {
+  #cursor-blob { display: none; }
+}

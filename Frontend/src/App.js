@@ -1,4 +1,4 @@
-// frontend/src/App.js
+// src/App.js
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
@@ -9,32 +9,29 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import ManagerDashboard from "./pages/ManagerDashboard.jsx";
 import ForceResetPassword from "./pages/ForceResetPassword.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
+import LandingPage from "./pages/LandingPage.jsx";
 
-// --- Safe parser for localStorage values ---
+// safe JSON parse helper
 function safeParse(key) {
   try {
     const raw = localStorage.getItem(key);
     if (!raw || raw === "undefined" || raw === "null") return null;
     return JSON.parse(raw);
   } catch (e) {
-    console.error(`❌ Failed to parse ${key} from localStorage`, e);
+    console.error(`Failed to parse ${key}`, e);
     return null;
   }
 }
 
 function PrivateRoute({ children, role, token, user }) {
   const location = useLocation();
+  if (!token || !user) return <Navigate to="/login" replace state={{ from: location }} />;
 
-  if (!token || !user) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
-
-  // 🔒 Force reset gate (allow the force-reset page itself)
+  // if must reset -> force to /force-reset
   if (user.mustResetPassword && location.pathname !== "/force-reset") {
     return <Navigate to="/force-reset" replace state={{ from: location }} />;
   }
 
-  // If a role is required and doesn't match, send them to *their* dashboard
   if (role && user.role !== role) {
     return <Navigate to={`/${user.role}`} replace />;
   }
@@ -59,7 +56,6 @@ export default function App() {
     localStorage.clear();
   };
 
-  // Keep sessions in sync across tabs
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === "token" || e.key === "user") {
@@ -74,18 +70,18 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
+        {/* Landing */}
+        <Route path="/" element={<LandingPage />} />
+
+        {/* Public */}
         <Route path="/login" element={<AuthPage onAuth={handleAuth} />} />
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-        {/* Force reset password */}
-        <Route
-          path="/force-reset"
-          element={<ForceResetPassword onLogout={handleLogout} />}
-        />
+        {/* Force reset */}
+        <Route path="/force-reset" element={<ForceResetPassword onLogout={handleLogout} />} />
 
-        {/* Admin */}
+        {/* Protected - Admin */}
         <Route
           path="/admin"
           element={
@@ -95,7 +91,7 @@ export default function App() {
           }
         />
 
-        {/* Manager */}
+        {/* Protected - Manager */}
         <Route
           path="/manager"
           element={
@@ -105,7 +101,7 @@ export default function App() {
           }
         />
 
-        {/* Employee */}
+        {/* Protected - Employee */}
         <Route
           path="/employee"
           element={
@@ -115,35 +111,15 @@ export default function App() {
           }
         />
 
-        {/* Default redirect */}
-        <Route
-          path="/"
-          element={
-            user ? (
-              user.mustResetPassword ? (
-                <Navigate to="/force-reset" replace />
-              ) : (
-                <Navigate to={`/${user.role}`} replace />
-              )
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-
-        {/* Catch-all → send to correct place */}
+        {/* Catch-all: if user/session present redirect to role dashboard otherwise to landing */}
         <Route
           path="*"
           element={
-            user ? (
-              user.mustResetPassword ? (
-                <Navigate to="/force-reset" replace />
-              ) : (
-                <Navigate to={`/${user.role}`} replace />
-              )
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            user
+              ? user.mustResetPassword
+                ? <Navigate to="/force-reset" replace />
+                : <Navigate to={`/${user.role}`} replace />
+              : <Navigate to="/" replace />
           }
         />
       </Routes>
