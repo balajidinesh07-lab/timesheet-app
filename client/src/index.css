@@ -3,3 +3,6 @@ body { font-family: Arial, Helvetica, sans-serif; background: #f4f6fb; margin: 0
 input { padding: 6px; border: 1px solid #cfcfcf; border-radius: 3px; }
 button { padding: 6px 10px; cursor: pointer; }
 table input { padding: 4px; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
