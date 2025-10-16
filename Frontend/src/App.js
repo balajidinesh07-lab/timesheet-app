@@ -11,6 +11,13 @@ import ForceResetPassword from "./pages/ForceResetPassword.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 
+import PayrollDashboard from "./pages/PayrollDashboard.jsx"; // payroll main page
+import PayrollProfile from "./pages/PayrollProfile.jsx";     // payroll profile page (new)
+import LeaveDashboard from "./pages/LeaveDashboard.jsx";     // payroll -> leave subpage
+// (Optional) if you create these later you can import them:
+// import PayslipPage from "./pages/PayslipPage.jsx";
+// import Form16Page from "./pages/Form16Page.jsx";
+
 // safe JSON parse helper
 function safeParse(key) {
   try {
@@ -25,13 +32,16 @@ function safeParse(key) {
 
 function PrivateRoute({ children, role, token, user }) {
   const location = useLocation();
+
+  // Not authenticated -> send to login
   if (!token || !user) return <Navigate to="/login" replace state={{ from: location }} />;
 
-  // if must reset -> force to /force-reset
+  // Force password reset
   if (user.mustResetPassword && location.pathname !== "/force-reset") {
     return <Navigate to="/force-reset" replace state={{ from: location }} />;
   }
 
+  // Role mismatch -> redirect to user's role dashboard
   if (role && user.role !== role) {
     return <Navigate to={`/${user.role}`} replace />;
   }
@@ -101,7 +111,7 @@ export default function App() {
           }
         />
 
-        {/* Protected - Employee */}
+        {/* Protected - Employee (Timesheet) */}
         <Route
           path="/employee"
           element={
@@ -110,6 +120,54 @@ export default function App() {
             </PrivateRoute>
           }
         />
+
+        {/* Protected - Employee (Payroll main) */}
+        <Route
+          path="/payroll"
+          element={
+            <PrivateRoute role="employee" token={token} user={user}>
+              <PayrollDashboard onLogout={handleLogout} />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Payroll - Profile */}
+        <Route
+          path="/payroll/profile"
+          element={
+            <PrivateRoute role="employee" token={token} user={user}>
+              <PayrollProfile onLogout={handleLogout} />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Payroll subpages (leave, payslip, forms etc.) */}
+        <Route
+          path="/payroll/leave"
+          element={
+            <PrivateRoute role="employee" token={token} user={user}>
+              <LeaveDashboard />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Example additional payroll subroutes you may add later */}
+        {/* <Route
+          path="/payroll/payslip"
+          element={
+            <PrivateRoute role="employee" token={token} user={user}>
+              <PayslipPage />
+            </PrivateRoute>
+          }
+        /> */}
+        {/* <Route
+          path="/payroll/form16"
+          element={
+            <PrivateRoute role="employee" token={token} user={user}>
+              <Form16Page />
+            </PrivateRoute>
+          }
+        /> */}
 
         {/* Catch-all: if user/session present redirect to role dashboard otherwise to landing */}
         <Route

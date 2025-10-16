@@ -1,8 +1,9 @@
 // src/pages/TimesheetDashboard.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { http } from "../api/http";
-import logo from "../assets/logo-dark.png"; // Add your logo file here
+import logo from "../assets/logo-dark.png"; // update path if needed
 
 // --- helpers --------------------------------------------------------------
 function getWeekRange(date) {
@@ -14,24 +15,14 @@ function getWeekRange(date) {
   monday.setHours(0, 0, 0, 0);
   monday.setDate(diff);
 
-  // Mon–Sat week (remove Sunday)
   const saturday = new Date(monday);
   saturday.setDate(monday.getDate() + 5);
   saturday.setHours(23, 59, 59, 999);
 
-  const fmt = (d) => {
-    return d.toLocaleDateString("en-US", {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    });
-  };
+  const fmt = (d) =>
+    d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 
-  return {
-    startDate: monday,
-    endDate: saturday,
-    label: `${fmt(monday)} - ${fmt(saturday)}`,
-  };
+  return { startDate: monday, endDate: saturday, label: `${fmt(monday)} - ${fmt(saturday)}` };
 }
 
 // --- Task / Activity mapping ----------------------------------------------
@@ -67,18 +58,18 @@ const taskActivityMap = {
   PoC: ["Workflow Desgin", "Demo"],
   Reviews: ["Design Review", "Code Review", "Documentation Review"],
 };
-
 const taskOptions = Object.keys(taskActivityMap);
+
+// ---- CONFIG ----
 const MAX_ROWS = 5;
-const MIN_ROWS = 1;
+const MIN_ROWS = 2; // default rows to show when editor empty
 
 const makeEmptyRow = () => ({
   client: "",
   project: "",
   task: "",
   activity: "",
-  // 6 days (Mon–Sat)
-  hours: [0, 0, 0, 0, 0, 0],
+  hours: [0, 0, 0, 0, 0, 0], // Mon-Sat
   comments: [null, null, null, null, null, null],
 });
 
@@ -94,8 +85,26 @@ const padToMinRows = (rows) => {
   return copy.slice(0, MAX_ROWS);
 };
 
+// ---------- Profile helpers (new) -----------------------------------------
+function getProfileFromLocalStorage() {
+  // attempt to read common keys the app might store
+  const photo = localStorage.getItem("profilePhoto") || null;
+  const name = localStorage.getItem("name") || localStorage.getItem("userName") || "";
+  const email = localStorage.getItem("email") || "";
+  return { photo, name, email };
+}
+
+function initialsFromName(name) {
+  if (!name) return "EU";
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() || "").join("") || name.slice(0, 2).toUpperCase();
+}
+
 // --- component ------------------------------------------------------------
 export default function TimesheetDashboard({ onLogout }) {
+  const navigate = useNavigate();
+  const gotoPayroll = () => navigate("/payroll");
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const { startDate, label } = useMemo(() => getWeekRange(currentDate), [currentDate]);
   const weekStartStr = useMemo(() => new Date(startDate).toISOString().slice(0, 10), [startDate]);
@@ -108,12 +117,15 @@ export default function TimesheetDashboard({ onLogout }) {
   const [loadingCurrentWeek, setLoadingCurrentWeek] = useState(false);
 
   const [expandedSaved, setExpandedSaved] = useState({});
-  const [savedRowSelection, setSavedRowSelection] = useState({}); // { sheetId: { all: bool, rows: { idx: true } } }
+  const [savedRowSelection, setSavedRowSelection] = useState({});
   const [editingSaved, setEditingSaved] = useState(null);
   const [editingRows, setEditingRows] = useState([]);
   const [commentModal, setCommentModal] = useState({ open: false, sheetId: null, rowIndex: null, dayIndex: null, text: "", meta: {} });
 
-  // helpers: row emptiness / completeness
+  // profile info cached on first render
+  const profile = useMemo(() => getProfileFromLocalStorage(), []);
+
+  // row helpers
   const isRowEmpty = (r) =>
     (r.client || "").trim() === "" &&
     (r.project || "").trim() === "" &&
@@ -134,7 +146,7 @@ export default function TimesheetDashboard({ onLogout }) {
     (async () => {
       setLoadingCurrentWeek(true);
       try {
-        const sheet = await http.get(`/timesheets/${weekStartStr}`); // expects single sheet or 404/null
+        const sheet = await http.get(`/timesheets/${weekStartStr}`);
         const next = sheet && Array.isArray(sheet.rows) ? padToMinRows(sheet.rows) : padToMinRows([]);
         if (alive) {
           setRows(next);
@@ -153,11 +165,11 @@ export default function TimesheetDashboard({ onLogout }) {
     return () => { alive = false; };
   }, [weekStartStr]);
 
-  // fetch list of all sheets (history)
+  // fetch all sheets (history)
   const fetchAllSheets = async () => {
     try {
       setLoadingSheetsList(true);
-      const res = await http.get("/timesheets"); // expects array
+      const res = await http.get("/timesheets");
       setAllSheets(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error("Failed to fetch sheets list:", err);
@@ -185,7 +197,7 @@ export default function TimesheetDashboard({ onLogout }) {
   const totalByDay = (dayIdx) => rows.reduce((s, r) => s + (parseInt(r.hours[dayIdx], 10) || 0), 0);
   const grandTotal = () => rows.reduce((s, r) => s + totalByRow(r), 0);
 
-  // ----- save/submit: exclude empty rows -----
+  // save/submit (exclude empty rows)
   async function saveTimesheet() {
     if (!editable) return alert("🔒 Timesheet is locked after manager review.");
     const meaningful = (rows || []).filter((r) => !isRowEmpty(r));
@@ -264,14 +276,11 @@ export default function TimesheetDashboard({ onLogout }) {
       const willSelectAll = !next[sheetId].all;
       next[sheetId].all = !!willSelectAll;
       next[sheetId].rows = {};
-      if (willSelectAll) {
-        for (let i = 0; i < total; i++) next[sheetId].rows[i] = true;
-      }
+      if (willSelectAll) for (let i = 0; i < total; i++) next[sheetId].rows[i] = true;
       return next;
     });
   };
 
-  // submit selected non-empty rows for saved sheets
   async function submitSelectedSavedRows() {
     try {
       const payloadBundles = [];
@@ -281,24 +290,19 @@ export default function TimesheetDashboard({ onLogout }) {
         if (!sel) continue;
         const indices = Object.keys(sel.rows || {}).map((k) => parseInt(k, 10)).sort((a, b) => a - b);
         if (indices.length === 0) continue;
-
-        // collect selected rows and filter empty ones
         const selectedRows = indices.map((i) => s.rows[i]).filter((r) => r && !isRowEmpty(r));
         if (selectedRows.length === 0) continue;
-
         payloadBundles.push({ sheetId: id, weekStart: s.weekStart, rows: selectedRows });
       }
 
       if (payloadBundles.length === 0) return alert("Select at least one non-empty row to submit.");
 
       for (const p of payloadBundles) {
-        // adjust endpoint to your backend contract. This example uses a per-sheet submit endpoint:
         await http.post(`/timesheets/${p.sheetId}/submit-rows`, { weekStart: p.weekStart, rows: p.rows });
       }
 
       await fetchAllSheets();
       alert("Selected non-empty rows submitted.");
-      // clear selection
       setSavedRowSelection({});
     } catch (err) {
       console.error("submitSelectedSavedRows failed:", err);
@@ -306,13 +310,9 @@ export default function TimesheetDashboard({ onLogout }) {
     }
   }
 
-  // open edit modal for a saved sheet, copy rows into editingRows
-  const openEditModal = (sheet) => {
-    setEditingSaved(sheet);
-    setEditingRows(padToMinRows(sheet.rows || []));
-  };
+  // edit modal
+  const openEditModal = (sheet) => { setEditingSaved(sheet); setEditingRows(padToMinRows(sheet.rows || [])); };
   const closeEditModal = () => { setEditingSaved(null); setEditingRows([]); };
-
   const editingAddRow = () => { if (!editingSaved) return; if (editingRows.length >= MAX_ROWS) return; setEditingRows((r) => [...r, makeEmptyRow()]); };
   const editingRemoveRow = (idx) => { if (!editingSaved) return; setEditingRows((prev) => padToMinRows(prev.filter((_, i) => i !== idx))); };
   const editingChange = (i, field, value) => { setEditingRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], [field]: value }; if (field === "task") copy[i].activity = ""; return copy; }); };
@@ -334,7 +334,7 @@ export default function TimesheetDashboard({ onLogout }) {
     }
   };
 
-  // comment modal handlers
+  // comments modal handlers
   const openCommentModal = (sheetId, rowIndex, dayIndex, meta = {}) => {
     let initialText = "";
     const sheet = sheetsForWeek.find((s) => (s._id || "") === sheetId) || null;
@@ -348,26 +348,31 @@ export default function TimesheetDashboard({ onLogout }) {
   };
   const closeCommentModal = () => setCommentModal({ open: false, sheetId: null, rowIndex: null, dayIndex: null, text: "", meta: {} });
 
+  // IMPORTANT: call backend endpoint that will store comment into timesheet rows
   const saveComment = async () => {
     const { sheetId, rowIndex, dayIndex, text } = commentModal;
     try {
-      // backend endpoint: adjust to your API
-      await http.post("/comments", { sheetId, weekStart: weekStartStr, rowIndex, dayIndex, text });
+      // backend endpoint: POST /timesheets/comments
+      await http.post("/timesheets/comments", { sheetId: sheetId === "editor" ? null : sheetId, weekStart: weekStartStr, rowIndex, dayIndex, text });
 
-      // update local copies for quick UI feedback:
-      setAllSheets((prev) => prev.map((s) => {
-        if ((s._id || "") !== (sheetId === "editor" ? "" : sheetId)) return s;
-        const copy = { ...s };
-        copy.rows = copy.rows || [];
-        copy.rows[rowIndex] = copy.rows[rowIndex] || makeEmptyRow();
-        copy.rows[rowIndex].comments = copy.rows[rowIndex].comments || Array(6).fill(null);
-        copy.rows[rowIndex].comments[dayIndex] = text;
-        return copy;
-      }));
+      // update local copies for UI immediately
+      setAllSheets((prev) =>
+        prev.map((s) => {
+          if (!s) return s;
+          const idMatches = sheetId === "editor" ? false : (s._id || "") === sheetId;
+          if (!idMatches) return s;
+          const copy = { ...s };
+          copy.rows = copy.rows || [];
+          while (copy.rows.length <= rowIndex) copy.rows.push(makeEmptyRow());
+          copy.rows[rowIndex].comments = copy.rows[rowIndex].comments || Array(6).fill(null);
+          copy.rows[rowIndex].comments[dayIndex] = text;
+          return copy;
+        })
+      );
 
       setRows((prev) => {
         const copy = [...prev];
-        if (!copy[rowIndex]) return copy;
+        while (copy.length <= rowIndex) copy.push(makeEmptyRow());
         copy[rowIndex] = { ...copy[rowIndex], comments: [...(copy[rowIndex].comments || Array(6).fill(null))] };
         copy[rowIndex].comments[dayIndex] = text;
         return copy;
@@ -381,13 +386,12 @@ export default function TimesheetDashboard({ onLogout }) {
     }
   };
 
-  // helper: total for sheet
   const totalForSheet = (sheet) => {
     if (!sheet || !Array.isArray(sheet.rows)) return 0;
     return sheet.rows.reduce((acc, r) => acc + (Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0), 0);
   };
 
-  // day labels
+  // day labels (Mon..Sat)
   const dayLabels = Array.from({ length: 6 }).map((_, i) => {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
@@ -402,27 +406,57 @@ export default function TimesheetDashboard({ onLogout }) {
         <div className="absolute -bottom-28 -right-24 w-96 h-96 bg-gradient-to-tr from-green-100 to-teal-50 rounded-full opacity-30 blur-3xl animate-float-slow" />
       </div>
 
-      {/* header with logo + title + logout */}
+      {/* header */} 
       <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <img src={logo} alt="Yvidhya" className="h-12 w-auto object-contain" />
+          <img src={logo} alt="Company" className="h-12 w-auto object-contain" />
           <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Timesheet Input</h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-slate-600 mr-3">Week: <span className="font-medium">{label}</span></div>
-          <div>
-            <button onClick={onLogout} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow transition"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
+        <div className="flex items-center gap-6">
+          <div className="text-base text-slate-600 mr-3 hidden md:block">
+            Week: <span className="font-semibold text-indigo-700">{label}</span>
+          </div>
+
+          {/* PROFILE AVATAR — clicking goes to Payroll Dashboard */}
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="text-xs text-slate-500">Signed in as</div>
+              <div className="font-semibold">{profile.name || "Employee"}</div>
+            </div>
+
+            <button
+              onClick={gotoPayroll}
+              aria-label="Open payroll"
+              title="Open payroll dashboard"
+              className="relative group"
+              style={{ outline: "none", border: "none", background: "transparent" }}
+            >
+              {profile.photo ? (
+                <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-md transform transition group-hover:scale-105">
+                  <img src={profile.photo} alt={profile.name || "Employee"} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-semibold text-sm">
+                  {initialsFromName(profile.name)}
+                </div>
+              )}
+              <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-green-400 ring-2 ring-white animate-pulse" />
+            </button>
+
+            <button onClick={onLogout} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow transition ml-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0z"/>
   <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/>
-</svg></button>
+</svg>
+            </button>
           </div>
         </div>
       </header>
 
       <div className="flex items-center gap-3 mb-4">
         <button onClick={prevWeek} className="p-2 rounded-lg border bg-white hover:bg-slate-50"><ChevronLeft /></button>
-        <div className="text-xl font-semibold text-slate-800 tracking-wide">Week: <span className="text-indigo-700">{label}</span></div>
+        <div className="text-xl font-semibold text-slate-800 tracking-wide md:hidden">Week: <span className="text-indigo-700">{label}</span></div>
         <button onClick={nextWeek} className="p-2 rounded-lg border bg-white hover:bg-slate-50"><ChevronRight /></button>
 
         <div className="ml-auto flex items-center gap-3">
@@ -539,10 +573,11 @@ export default function TimesheetDashboard({ onLogout }) {
                 const id = s._id || `${s.weekStart}-${idx}`;
                 const total = totalForSheet(s);
                 const when = new Date(s.updatedAt || s.createdAt || s.weekStart).toLocaleString();
-                const expanded = !!expandedSaved[id];
+                // default visible/expanded = true unless user toggled
+                const expanded = (expandedSaved[id] === undefined) ? true : !!expandedSaved[id];
                 const selection = savedRowSelection[id] || { all: false, rows: {} };
 
-                // keep UI compact: show single meaningful row when possible
+                // keep UI compact - show only meaningful rows but if there's only one row show only it
                 const visibleRows = (s.rows || []).filter((r, i) => {
                   const rowTotal = Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0;
                   return rowTotal > 0 || i === 0 || (r.client || r.project || r.task || r.activity);
@@ -637,9 +672,7 @@ export default function TimesheetDashboard({ onLogout }) {
               </div>
             </div>
 
-            <div className="mb-4">
-              <div className="text-sm text-slate-500">Status: <StatusBadge s={editingSaved.status} /></div>
-            </div>
+            <div className="mb-4"><div className="text-sm text-slate-500">Status: <StatusBadge s={editingSaved.status} /></div></div>
 
             <div className="overflow-x-auto bg-white border rounded p-3">
               <table className="w-full text-sm">
@@ -683,10 +716,7 @@ export default function TimesheetDashboard({ onLogout }) {
                           <input type="number" min="0" max="9" value={h} onChange={(e) => editingHourChange(ridx, di, e.target.value)} className="w-14 border rounded text-center" />
                         </td>
                       ))}
-                      <td className="p-2 text-center"><button onClick={() => editingRemoveRow(ridx)} className="bg-red-100 text-red-700 px-2 py-1 rounded"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
-  <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
-</svg></button></td>
+                      <td className="p-2 text-center"><button onClick={() => editingRemoveRow(ridx)} className="bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -765,8 +795,7 @@ export default function TimesheetDashboard({ onLogout }) {
           background: #2563EB;
           box-shadow: 0 1px 2px rgba(37,99,235,0.2);
         }
-        input[type="number"].pr-8 { padding-right: 2rem; }
-        tfoot tr td { border-top: 0; }
+        tfoot tr td { border-top: 0; text-align: center; }
         @media (max-width: 900px) {
           .comment-btn { right: 6px; top: 6px; transform: scale(0.95); }
           .comment-dot { left: 6px; top: 6px; width: 7px; height: 7px; }
