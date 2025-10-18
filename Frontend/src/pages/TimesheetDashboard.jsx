@@ -9,20 +9,21 @@ import logo from "../assets/logo-dark.png"; // update path if needed
 function getWeekRange(date) {
   const base = new Date(date);
   const day = base.getDay();
+  // make Monday the start of week; if Sunday (0) shift back to previous Monday
   const diff = base.getDate() - day + (day === 0 ? -6 : 1);
 
   const monday = new Date(base);
   monday.setHours(0, 0, 0, 0);
   monday.setDate(diff);
 
-  const saturday = new Date(monday);
-  saturday.setDate(monday.getDate() + 5);
-  saturday.setHours(23, 59, 59, 999);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
 
   const fmt = (d) =>
     d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 
-  return { startDate: monday, endDate: saturday, label: `${fmt(monday)} - ${fmt(saturday)}` };
+  return { startDate: monday, endDate: sunday, label: `${fmt(monday)} - ${fmt(sunday)}` };
 }
 
 // --- Task / Activity mapping ----------------------------------------------
@@ -63,37 +64,36 @@ const taskOptions = Object.keys(taskActivityMap);
 // ---- CONFIG ----
 const MAX_ROWS = 5;
 const MIN_ROWS = 2; // default rows to show when editor empty
+const DAYS_IN_WEEK = 7; // Monday -> Sunday
 
 const makeEmptyRow = () => ({
   client: "",
   project: "",
   task: "",
   activity: "",
-  hours: [0, 0, 0, 0, 0, 0], // Mon-Sat
-  comments: [null, null, null, null, null, null],
+  hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0), // Mon-Sun
+  comments: Array.from({ length: DAYS_IN_WEEK }).map(() => null),
 });
 
 const padToMinRows = (rows) => {
   const copy = (rows || []).map((r) => {
-    const hrs = Array.isArray(r.hours) ? r.hours.slice(0, 6) : [];
-    while (hrs.length < 6) hrs.push(0);
-    const comments = Array.isArray(r.comments) ? r.comments.slice(0, 6) : [];
-    while (comments.length < 6) comments.push(null);
+    const hrs = Array.isArray(r.hours) ? r.hours.slice(0, DAYS_IN_WEEK) : [];
+    while (hrs.length < DAYS_IN_WEEK) hrs.push(0);
+    const comments = Array.isArray(r.comments) ? r.comments.slice(0, DAYS_IN_WEEK) : [];
+    while (comments.length < DAYS_IN_WEEK) comments.push(null);
     return { ...r, hours: hrs, comments };
   });
   while (copy.length < MIN_ROWS) copy.push(makeEmptyRow());
   return copy.slice(0, MAX_ROWS);
 };
 
-// ---------- Profile helpers (new) -----------------------------------------
+// ---------- Profile helpers -----------------------------------------
 function getProfileFromLocalStorage() {
-  // attempt to read common keys the app might store
   const photo = localStorage.getItem("profilePhoto") || null;
   const name = localStorage.getItem("name") || localStorage.getItem("userName") || "";
   const email = localStorage.getItem("email") || "";
   return { photo, name, email };
 }
-
 function initialsFromName(name) {
   if (!name) return "EU";
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -111,7 +111,6 @@ export default function TimesheetDashboard({ onLogout }) {
 
   const [rows, setRows] = useState(padToMinRows([]));
   const [status, setStatus] = useState("draft");
-
   const [allSheets, setAllSheets] = useState([]);
   const [loadingSheetsList, setLoadingSheetsList] = useState(false);
   const [loadingCurrentWeek, setLoadingCurrentWeek] = useState(false);
@@ -190,7 +189,7 @@ export default function TimesheetDashboard({ onLogout }) {
   const addRow = () => { if (rows.length >= MAX_ROWS || !editable) return; setRows((r) => [...r, makeEmptyRow()]); };
   const removeRow = (idx) => { if (!editable) return; const copy = rows.filter((_, i) => i !== idx); setRows(padToMinRows(copy)); };
   const handleChange = (i, field, value) => { if (!editable) return; setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], [field]: value }; if (field === "task") copy[i].activity = ""; return copy; }); };
-  const handleHourChange = (rowIdx, dayIdx, value) => { if (!editable) return; const n = Math.max(0, Math.min(9, Number.isFinite(+value) ? parseInt(value, 10) : 0)); setRows((prev) => { const copy = [...prev]; const hours = [...copy[rowIdx].hours]; hours[dayIdx] = n; copy[rowIdx] = { ...copy[rowIdx], hours }; return copy; }); };
+  const handleHourChange = (rowIdx, dayIdx, value) => { if (!editable) return; const n = Math.max(0, Math.min(24, Number.isFinite(+value) ? parseInt(value, 10) : 0)); setRows((prev) => { const copy = [...prev]; const hours = [...copy[rowIdx].hours]; hours[dayIdx] = n; copy[rowIdx] = { ...copy[rowIdx], hours }; return copy; }); };
 
   // totals
   const totalByRow = (row) => row.hours.reduce((s, h) => s + (parseInt(h, 10) || 0), 0);
@@ -316,7 +315,7 @@ export default function TimesheetDashboard({ onLogout }) {
   const editingAddRow = () => { if (!editingSaved) return; if (editingRows.length >= MAX_ROWS) return; setEditingRows((r) => [...r, makeEmptyRow()]); };
   const editingRemoveRow = (idx) => { if (!editingSaved) return; setEditingRows((prev) => padToMinRows(prev.filter((_, i) => i !== idx))); };
   const editingChange = (i, field, value) => { setEditingRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], [field]: value }; if (field === "task") copy[i].activity = ""; return copy; }); };
-  const editingHourChange = (rowIdx, dayIdx, value) => { const n = Math.max(0, Math.min(9, Number.isFinite(+value) ? parseInt(value, 10) : 0)); setEditingRows((prev) => { const copy = [...prev]; const hrs = [...copy[rowIdx].hours]; hrs[dayIdx] = n; copy[rowIdx] = { ...copy[rowIdx], hours: hrs }; return copy; }); };
+  const editingHourChange = (rowIdx, dayIdx, value) => { const n = Math.max(0, Math.min(24, Number.isFinite(+value) ? parseInt(value, 10) : 0)); setEditingRows((prev) => { const copy = [...prev]; const hrs = [...copy[rowIdx].hours]; hrs[dayIdx] = n; copy[rowIdx] = { ...copy[rowIdx], hours: hrs }; return copy; }); };
 
   const saveEditedSheet = async () => {
     if (!editingSaved) return;
@@ -364,7 +363,7 @@ export default function TimesheetDashboard({ onLogout }) {
           const copy = { ...s };
           copy.rows = copy.rows || [];
           while (copy.rows.length <= rowIndex) copy.rows.push(makeEmptyRow());
-          copy.rows[rowIndex].comments = copy.rows[rowIndex].comments || Array(6).fill(null);
+          copy.rows[rowIndex].comments = copy.rows[rowIndex].comments || Array(DAYS_IN_WEEK).fill(null);
           copy.rows[rowIndex].comments[dayIndex] = text;
           return copy;
         })
@@ -373,7 +372,7 @@ export default function TimesheetDashboard({ onLogout }) {
       setRows((prev) => {
         const copy = [...prev];
         while (copy.length <= rowIndex) copy.push(makeEmptyRow());
-        copy[rowIndex] = { ...copy[rowIndex], comments: [...(copy[rowIndex].comments || Array(6).fill(null))] };
+        copy[rowIndex] = { ...copy[rowIndex], comments: [...(copy[rowIndex].comments || Array(DAYS_IN_WEEK).fill(null))] };
         copy[rowIndex].comments[dayIndex] = text;
         return copy;
       });
@@ -391,8 +390,8 @@ export default function TimesheetDashboard({ onLogout }) {
     return sheet.rows.reduce((acc, r) => acc + (Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0), 0);
   };
 
-  // day labels (Mon..Sat)
-  const dayLabels = Array.from({ length: 6 }).map((_, i) => {
+  // day labels (Mon..Sun)
+  const dayLabels = Array.from({ length: DAYS_IN_WEEK }).map((_, i) => {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
     return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit" });
@@ -400,25 +399,40 @@ export default function TimesheetDashboard({ onLogout }) {
 
   // UI
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 p-6">
+    <div
+      className="relative min-h-screen p-6"
+      style={{
+        // corporate modern: subtle layered gradients and soft radial blobs
+        background:
+          "radial-gradient(circle at 8% 12%, rgba(59,130,246,0.06) 0%, transparent 28%), " + // blue top-left
+          "radial-gradient(circle at 92% 84%, rgba(16,185,129,0.05) 0%, transparent 32%), " + // green bottom-right
+          "linear-gradient(180deg, #ffffff 0%, #fbffff 40%, #f7fffb 100%)",
+        backgroundAttachment: "fixed",
+      }}
+    >
+      {/* subtle decorative blobs */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-28 -left-24 w-72 h-72 bg-gradient-to-tr from-blue-100 to-blue-50 rounded-full opacity-40 blur-3xl animate-float" />
-        <div className="absolute -bottom-28 -right-24 w-96 h-96 bg-gradient-to-tr from-green-100 to-teal-50 rounded-full opacity-30 blur-3xl animate-float-slow" />
+        <div
+          className="absolute -top-28 -left-24 w-72 h-72 rounded-full opacity-40 blur-3xl transform-gpu"
+          style={{ background: "radial-gradient(circle at 30% 30%, rgba(219,234,254,0.9), rgba(219,234,254,0.1) 40%)" }}
+        />
+        <div
+          className="absolute -bottom-28 -right-24 w-96 h-96 rounded-full opacity-30 blur-3xl transform-gpu"
+          style={{ background: "radial-gradient(circle at 70% 70%, rgba(220,252,231,0.95), rgba(220,252,231,0.08) 40%)" }}
+        />
       </div>
 
-      {/* header */} 
+      {/* header */}
       <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <img src={logo} alt="Company" className="h-12 w-auto object-contain" />
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Timesheet Input</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Timesheet Input</h1>
+            <div className="text-xs text-slate-500">Organize your weekly work with clarity</div>
+          </div>
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="text-base text-slate-600 mr-3 hidden md:block">
-            Week: <span className="font-semibold text-indigo-700">{label}</span>
-          </div>
-
-          {/* PROFILE AVATAR — clicking goes to Payroll Dashboard */}
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <div className="text-xs text-slate-500">Signed in as</div>
@@ -445,19 +459,31 @@ export default function TimesheetDashboard({ onLogout }) {
             </button>
 
             <button onClick={onLogout} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow transition ml-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
-  <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0z"/>
-  <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/>
-</svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-box-arrow-right" viewBox="0 0 16 16">
+                <path fillRule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0z"/>
+                <path fillRule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/>
+              </svg>
             </button>
           </div>
         </div>
       </header>
 
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={prevWeek} className="p-2 rounded-lg border bg-white hover:bg-slate-50"><ChevronLeft /></button>
-        <div className="text-xl font-semibold text-slate-800 tracking-wide md:hidden">Week: <span className="text-indigo-700">{label}</span></div>
-        <button onClick={nextWeek} className="p-2 rounded-lg border bg-white hover:bg-slate-50"><ChevronRight /></button>
+      {/* Week nav + actions - styled as a glass bar */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="glass-card px-3 py-2 flex items-center gap-3 rounded-lg shadow-sm border">
+          <button onClick={prevWeek} aria-label="Previous week" className="p-2 rounded-md hover:bg-slate-50 transition">
+            <ChevronLeft />
+          </button>
+
+          <div className="mx-4 text-base md:text-lg font-semibold text-slate-800 select-none">
+            <div className="text-xs text-slate-400">Week</div>
+            <div className="text-indigo-700">{label}</div>
+          </div>
+
+          <button onClick={nextWeek} aria-label="Next week" className="p-2 rounded-md hover:bg-slate-50 transition">
+            <ChevronRight />
+          </button>
+        </div>
 
         <div className="ml-auto flex items-center gap-3">
           <button onClick={addRow} disabled={rows.length >= MAX_ROWS || !editable}
@@ -466,21 +492,21 @@ export default function TimesheetDashboard({ onLogout }) {
           </button>
 
           <div className="flex gap-2">
-            <button onClick={saveTimesheet} disabled={!editable} className={`px-4 py-2 rounded-lg ${editable ? "bg-gray-700 text-white hover:opacity-90" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Save</button>
-            <button onClick={submitTimesheet} disabled={!editable} className={`px-4 py-2 rounded-lg ${editable ? "bg-green-600 text-white hover:opacity-90" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Submit</button>
+            <button onClick={saveTimesheet} disabled={!editable} className={`px-4 py-2 rounded-lg ${editable ? "bg-slate-800 text-white hover:opacity-90" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Save</button>
+            <button onClick={submitTimesheet} disabled={!editable} className={`px-4 py-2 rounded-lg ${editable ? "bg-emerald-600 text-white hover:opacity-90" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Submit</button>
           </div>
         </div>
       </div>
 
-      {/* Editor */}
-      <div className="overflow-x-auto shadow-lg rounded-2xl bg-white p-4 border">
+      {/* Editor (main card) */}
+      <div className="overflow-x-auto shadow-2xl rounded-2xl bg-white/80 backdrop-blur-sm p-4 border border-white/40">
         <table className="w-full border-collapse text-sm table-fixed">
           <colgroup>
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "18%" }} />
             <col style={{ width: "16%" }} />
-            <col style={{ width: "20%" }} />
-            {Array.from({ length: 6 }).map((_, i) => <col key={i} style={{ width: "5.5rem" }} />)}
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "18%" }} />
+            {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => <col key={i} style={{ width: "4.5rem" }} />)}
             <col style={{ width: "4.5rem" }} />
             <col style={{ width: "3rem" }} />
           </colgroup>
@@ -504,21 +530,21 @@ export default function TimesheetDashboard({ onLogout }) {
 
           <tbody>
             {rows.map((row, rowIdx) => (
-              <tr key={rowIdx} className="border-b hover:bg-slate-50">
+              <tr key={rowIdx} className="border-b hover:bg-slate-50 transition">
                 <td className="p-2">
-                  <input className="w-full border rounded-lg p-2 pr-10 bg-white" value={row.client} disabled={!editable} onChange={(e) => handleChange(rowIdx, "client", e.target.value)} />
+                  <input aria-label={`Client ${rowIdx+1}`} className="w-full border rounded-lg p-2 pr-10 bg-white" value={row.client} disabled={!editable} onChange={(e) => handleChange(rowIdx, "client", e.target.value)} />
                 </td>
                 <td className="p-2">
-                  <input className="w-full border rounded-lg p-2 pr-10 bg-white" value={row.project} disabled={!editable} onChange={(e) => handleChange(rowIdx, "project", e.target.value)} />
+                  <input aria-label={`Project ${rowIdx+1}`} className="w-full border rounded-lg p-2 pr-10 bg-white" value={row.project} disabled={!editable} onChange={(e) => handleChange(rowIdx, "project", e.target.value)} />
                 </td>
                 <td className="p-2">
-                  <select className="w-full border rounded-lg p-2 bg-white" value={row.task} disabled={!editable} onChange={(e) => handleChange(rowIdx, "task", e.target.value)}>
+                  <select aria-label={`Task ${rowIdx+1}`} className="w-full border rounded-lg p-2 bg-white" value={row.task} disabled={!editable} onChange={(e) => handleChange(rowIdx, "task", e.target.value)}>
                     <option value="">-- Select --</option>
                     {taskOptions.map((t) => (<option key={t} value={t}>{t}</option>))}
                   </select>
                 </td>
                 <td className="p-2">
-                  <select className="w-full border rounded-lg p-2 bg-white" value={row.activity} disabled={!editable || !row.task} onChange={(e) => handleChange(rowIdx, "activity", e.target.value)}>
+                  <select aria-label={`Activity ${rowIdx+1}`} className="w-full border rounded-lg p-2 bg-white" value={row.activity} disabled={!editable || !row.task} onChange={(e) => handleChange(rowIdx, "activity", e.target.value)}>
                     <option value="">-- Select --</option>
                     {(taskActivityMap[row.task] || []).map((a) => (<option key={a} value={a}>{a}</option>))}
                   </select>
@@ -526,9 +552,9 @@ export default function TimesheetDashboard({ onLogout }) {
 
                 {row.hours.map((h, dayIdx) => (
                   <td key={dayIdx} className="p-2 text-center relative">
-                    <input type="number" min="0" max="9" value={h} disabled={!editable} onChange={(e) => handleHourChange(rowIdx, dayIdx, e.target.value)} className="w-14 border rounded-lg text-center pr-8" />
+                    <input aria-label={`Hours r${rowIdx+1} d${dayIdx+1}`} type="number" min="0" max="24" value={h} disabled={!editable} onChange={(e) => handleHourChange(rowIdx, dayIdx, e.target.value)} className="w-14 border rounded-lg text-center pr-8" />
                     <button onClick={() => openCommentModal((sheetsForWeek[0] && sheetsForWeek[0]._id) || "", rowIdx, dayIdx, { client: row.client, project: row.project, task: row.task })} className="comment-btn" title="Add / view comment" aria-label="Add comment">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2563EB" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </button>
@@ -573,11 +599,9 @@ export default function TimesheetDashboard({ onLogout }) {
                 const id = s._id || `${s.weekStart}-${idx}`;
                 const total = totalForSheet(s);
                 const when = new Date(s.updatedAt || s.createdAt || s.weekStart).toLocaleString();
-                // default visible/expanded = true unless user toggled
                 const expanded = (expandedSaved[id] === undefined) ? true : !!expandedSaved[id];
                 const selection = savedRowSelection[id] || { all: false, rows: {} };
 
-                // keep UI compact - show only meaningful rows but if there's only one row show only it
                 const visibleRows = (s.rows || []).filter((r, i) => {
                   const rowTotal = Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0;
                   return rowTotal > 0 || i === 0 || (r.client || r.project || r.task || r.activity);
@@ -613,7 +637,7 @@ export default function TimesheetDashboard({ onLogout }) {
 
                         <button onClick={() => openEditModal(s)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg">Edit</button>
                         <button onClick={() => setExpandedSaved((p) => ({ ...p, [id]: !p[id] }))} className="bg-white border px-3 py-1 rounded-lg">{expanded ? "Hide" : "Details"}</button>
-                        <button onClick={() => submitSelectedSavedRows()} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg">Submit</button>
+                        <button onClick={() => submitSelectedSavedRows()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg">Submit</button>
                       </div>
                     </div>
 
@@ -626,7 +650,7 @@ export default function TimesheetDashboard({ onLogout }) {
                               <th className="p-2 text-left">Project</th>
                               <th className="p-2 text-left">Task</th>
                               <th className="p-2 text-left">Activity</th>
-                              {Array.from({ length: 6 }).map((_, i) => <th key={i} className="p-2 text-center">{dayLabels[i].split(" ")[0]}</th>)}
+                              {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => <th key={i} className="p-2 text-center">{dayLabels[i].split(" ")[0]}</th>)}
                               <th className="p-2 text-center">Total</th>
                               <th className="p-2 text-center">Select</th>
                             </tr>
@@ -641,7 +665,7 @@ export default function TimesheetDashboard({ onLogout }) {
                                   <td className="p-2">{r.project}</td>
                                   <td className="p-2">{r.task}</td>
                                   <td className="p-2">{r.activity}</td>
-                                  {Array.from({ length: 6 }).map((_, di) => <td key={di} className="p-2 text-center">{(r.hours && r.hours[di] != null) ? r.hours[di] : 0}</td>)}
+                                  {Array.from({ length: DAYS_IN_WEEK }).map((_, di) => <td key={di} className="p-2 text-center">{(r.hours && r.hours[di] != null) ? r.hours[di] : 0}</td>)}
                                   <td className="p-2 text-center font-medium">{rowTotal}</td>
                                   <td className="p-2 text-center"><input type="checkbox" checked={isChecked} onChange={() => toggleSavedRow(id, ridx)} /></td>
                                 </tr>
@@ -681,7 +705,7 @@ export default function TimesheetDashboard({ onLogout }) {
                   <col style={{ width: "20%" }} />
                   <col style={{ width: "16%" }} />
                   <col style={{ width: "18%" }} />
-                  {Array.from({ length: 6 }).map((_, i) => (<col key={i} style={{ width: "5.5rem" }} />))}
+                  {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => (<col key={i} style={{ width: "4.5rem" }} />))}
                   <col style={{ width: "5rem" }} />
                 </colgroup>
                 <thead className="bg-slate-100 text-slate-700">
@@ -713,7 +737,7 @@ export default function TimesheetDashboard({ onLogout }) {
                       </td>
                       {r.hours.map((h, di) => (
                         <td key={di} className="p-2 text-center">
-                          <input type="number" min="0" max="9" value={h} onChange={(e) => editingHourChange(ridx, di, e.target.value)} className="w-14 border rounded text-center" />
+                          <input type="number" min="0" max="24" value={h} onChange={(e) => editingHourChange(ridx, di, e.target.value)} className="w-14 border rounded text-center" />
                         </td>
                       ))}
                       <td className="p-2 text-center"><button onClick={() => editingRemoveRow(ridx)} className="bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></td>
@@ -735,7 +759,7 @@ export default function TimesheetDashboard({ onLogout }) {
       {commentModal.open && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl w-[480px] max-w-[94%]">
-            <div className="bg-blue-600 rounded-t-xl px-6 py-3 text-white">
+            <div className="bg-indigo-700 rounded-t-xl px-6 py-3 text-white">
               <div className="flex items-center justify-between">
                 <h4 className="text-lg font-semibold">Comments</h4>
                 <button onClick={() => closeCommentModal()} className="text-white/90">✕</button>
@@ -762,14 +786,23 @@ export default function TimesheetDashboard({ onLogout }) {
 
               <div className="mt-4 flex justify-end gap-3">
                 <button onClick={() => closeCommentModal()} className="px-4 py-2 rounded-lg border">Cancel</button>
-                <button onClick={() => saveComment()} className="px-4 py-2 rounded-lg bg-green-600 text-white">Save</button>
+                <button onClick={() => saveComment()} className="px-4 py-2 rounded-lg bg-emerald-600 text-white">Save</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* styles */}
       <style>{`
+        /* Glass card utility */
+        .glass-card {
+          background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.55));
+          border: 1px solid rgba(255,255,255,0.6);
+          box-shadow: 0 4px 18px rgba(15,23,42,0.06);
+          backdrop-filter: blur(6px) saturate(120%);
+        }
+
         .comment-btn{
           position: absolute;
           top: 8px;
@@ -780,11 +813,11 @@ export default function TimesheetDashboard({ onLogout }) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 1px 3px rgba(16,24,40,0.06);
+          box-shadow: 0 4px 18px rgba(2,6,23,0.08);
           border: 1px solid rgba(16,24,40,0.06);
           cursor: pointer;
         }
-        .comment-btn:hover { background: #f8fafc; }
+        .comment-btn:hover { background: #f8fafc; transform: translateY(-1px); }
         .comment-dot {
           position: absolute;
           left: 8px;
@@ -793,16 +826,38 @@ export default function TimesheetDashboard({ onLogout }) {
           height: 8px;
           border-radius: 50%;
           background: #2563EB;
-          box-shadow: 0 1px 2px rgba(37,99,235,0.2);
+          box-shadow: 0 2px 6px rgba(37,99,235,0.18);
         }
         tfoot tr td { border-top: 0; text-align: center; }
+
+        /* Tiny animation for floating blobs — gentle movement */
+        @keyframes floatY {
+          0% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+          100% { transform: translateY(0); }
+        }
+        .pointer-events-none > div { animation: floatY 9s ease-in-out infinite; }
+
+        /* responsive tweaks */
         @media (max-width: 900px) {
           .comment-btn { right: 6px; top: 6px; transform: scale(0.95); }
           .comment-dot { left: 6px; top: 6px; width: 7px; height: 7px; }
         }
-        @keyframes float { 0%{transform:translateY(0)}50%{transform:translateY(-12px)}100%{transform:translateY(0)} }
-        .animate-float { animation: float 6s ease-in-out infinite; }
-        .animate-float-slow { animation: float 10s ease-in-out infinite; }
+
+        /* status badges */
+        .status-draft { background: #f1f5f9; color: #475569; }
+        .status-submitted { background: #fff7ed; color: #92400e; }
+        .status-approved { background: #ecfdf5; color: #064e3b; }
+        .status-rejected { background: #fff1f2; color: #7f1d1d; }
+
+        /* small polished focus styles */
+        input:focus, select:focus, textarea:focus, button:focus {
+          outline: 2px solid rgba(99,102,241,0.12);
+          outline-offset: 2px;
+        }
+
+        /* rounded card shadow polish */
+        .shadow-2xl { box-shadow: 0 10px 30px rgba(2,6,23,0.06); }
       `}</style>
     </div>
   );
@@ -811,11 +866,11 @@ export default function TimesheetDashboard({ onLogout }) {
 // small helper component
 function StatusBadge({ s }) {
   const map = {
-    draft: "bg-gray-100 text-gray-700",
-    submitted: "bg-yellow-100 text-yellow-700",
-    approved: "bg-green-100 text-green-700",
-    rejected: "bg-red-100 text-red-700",
+    draft: "status-draft",
+    submitted: "status-submitted",
+    approved: "status-approved",
+    rejected: "status-rejected",
   };
   const label = (s || "draft").charAt(0).toUpperCase() + (s || "draft").slice(1);
-  return <span className={`px-2 py-1 rounded-full text-xs font-medium ${map[s] || "bg-gray-100"}`}>{label}</span>;
+  return <span className={`px-2 py-1 rounded-full text-xs font-medium ${map[s] || "status-draft"}`}>{label}</span>;
 }
