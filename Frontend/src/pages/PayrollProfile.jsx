@@ -339,7 +339,7 @@ export default function PayrollProfile() {
             </div>
           </div>
 
-          {/* Analytics / right column */}
+          
           <aside className="bg-white rounded-2xl p-6 shadow-lg flex flex-col gap-6 border border-slate-100" style={{ minHeight: 320 }}>
             <div className="flex items-center justify-between">
               <div>
