@@ -6,24 +6,31 @@ import { http } from "../api/http";
 import logo from "../assets/logo-dark.png"; // update path if needed
 
 // --- helpers --------------------------------------------------------------
-function getWeekRange(date) {
+const DAYS_IN_WEEK = 7; // Monday -> Sunday
+function getWeekRangeLocalToUTC(date) {
+  // date is a Date object (local)
   const base = new Date(date);
   const day = base.getDay();
-  // make Monday the start of week; if Sunday (0) shift back to previous Monday
-  const diff = base.getDate() - day + (day === 0 ? -6 : 1);
+  const diff = base.getDate() - day + (day === 0 ? -6 : 1); // local Monday date value
+  const localMonday = new Date(base);
+  localMonday.setHours(0, 0, 0, 0);
+  localMonday.setDate(diff);
 
-  const monday = new Date(base);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(diff);
+  // produce UTC midnight for that local Monday (so both client and server use same YYYY-MM-DD)
+  const utcMonday = new Date(Date.UTC(localMonday.getFullYear(), localMonday.getMonth(), localMonday.getDate(), 0, 0, 0, 0));
 
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
+  const sundayUtc = new Date(utcMonday);
+  sundayUtc.setUTCDate(sundayUtc.getUTCDate() + 6);
+  sundayUtc.setUTCHours(23, 59, 59, 999);
 
   const fmt = (d) =>
     d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 
-  return { startDate: monday, endDate: sunday, label: `${fmt(monday)} - ${fmt(sunday)}` };
+  // label uses local dates for user readability
+  const labelLocalEnd = new Date(localMonday);
+  labelLocalEnd.setDate(labelLocalEnd.getDate() + 6);
+
+  return { startDateUTC: utcMonday, endDateUTC: sundayUtc, label: `${fmt(localMonday)} - ${fmt(labelLocalEnd)}` };
 }
 
 // --- Task / Activity mapping ----------------------------------------------
@@ -64,14 +71,13 @@ const taskOptions = Object.keys(taskActivityMap);
 // ---- CONFIG ----
 const MAX_ROWS = 5;
 const MIN_ROWS = 2; // default rows to show when editor empty
-const DAYS_IN_WEEK = 7; // Monday -> Sunday
 
 const makeEmptyRow = () => ({
   client: "",
   project: "",
   task: "",
   activity: "",
-  hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0), // Mon-Sun
+  hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0),
   comments: Array.from({ length: DAYS_IN_WEEK }).map(() => null),
 });
 
@@ -106,8 +112,8 @@ export default function TimesheetDashboard({ onLogout }) {
   const gotoPayroll = () => navigate("/payroll");
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { startDate, label } = useMemo(() => getWeekRange(currentDate), [currentDate]);
-  const weekStartStr = useMemo(() => new Date(startDate).toISOString().slice(0, 10), [startDate]);
+  const { startDateUTC, label } = useMemo(() => getWeekRangeLocalToUTC(currentDate), [currentDate]);
+  const weekStartStr = useMemo(() => startDateUTC.toISOString().slice(0, 10), [startDateUTC]);
 
   const [rows, setRows] = useState(padToMinRows([]));
   const [status, setStatus] = useState("draft");
@@ -121,7 +127,6 @@ export default function TimesheetDashboard({ onLogout }) {
   const [editingRows, setEditingRows] = useState([]);
   const [commentModal, setCommentModal] = useState({ open: false, sheetId: null, rowIndex: null, dayIndex: null, text: "", meta: {} });
 
-  // profile info cached on first render
   const profile = useMemo(() => getProfileFromLocalStorage(), []);
 
   // row helpers
@@ -182,8 +187,8 @@ export default function TimesheetDashboard({ onLogout }) {
   const editable = status !== "approved" && status !== "rejected";
 
   // nav
-  const prevWeek = () => { const d = new Date(startDate); d.setDate(d.getDate() - 7); setCurrentDate(d); };
-  const nextWeek = () => { const d = new Date(startDate); d.setDate(d.getDate() + 7); setCurrentDate(d); };
+  const prevWeek = () => { const d = new Date(startDateUTC); d.setUTCDate(d.getUTCDate() - 7); setCurrentDate(new Date(d)); };
+  const nextWeek = () => { const d = new Date(startDateUTC); d.setUTCDate(d.getUTCDate() + 7); setCurrentDate(new Date(d)); };
 
   // editor row ops
   const addRow = () => { if (rows.length >= MAX_ROWS || !editable) return; setRows((r) => [...r, makeEmptyRow()]); };
@@ -352,7 +357,15 @@ export default function TimesheetDashboard({ onLogout }) {
     const { sheetId, rowIndex, dayIndex, text } = commentModal;
     try {
       // backend endpoint: POST /timesheets/comments
-      await http.post("/timesheets/comments", { sheetId: sheetId === "editor" ? null : sheetId, weekStart: weekStartStr, rowIndex, dayIndex, text });
+      // send sheetId null when editing editor (we use "editor" marker locally)
+      const payload = {
+        sheetId: sheetId === "editor" ? null : sheetId,
+        weekStart: weekStartStr,
+        rowIndex,
+        dayIndex,
+        text,
+      };
+      await http.post("/timesheets/comments", payload);
 
       // update local copies for UI immediately
       setAllSheets((prev) =>
@@ -390,22 +403,22 @@ export default function TimesheetDashboard({ onLogout }) {
     return sheet.rows.reduce((acc, r) => acc + (Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0), 0);
   };
 
-  // day labels (Mon..Sun)
+  // day labels (Mon..Sun) shown in local display (use startDateUTC but compute local labels)
   const dayLabels = Array.from({ length: DAYS_IN_WEEK }).map((_, i) => {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
+    const d = new Date(startDateUTC);
+    d.setUTCDate(startDateUTC.getUTCDate() + i);
+    // show weekday short and day number in user locale (British format for small display)
     return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit" });
   });
 
-  // UI
+  // UI (same layout as before)
   return (
     <div
       className="relative min-h-screen p-6"
       style={{
-        // corporate modern: subtle layered gradients and soft radial blobs
         background:
-          "radial-gradient(circle at 8% 12%, rgba(59,130,246,0.06) 0%, transparent 28%), " + // blue top-left
-          "radial-gradient(circle at 92% 84%, rgba(16,185,129,0.05) 0%, transparent 32%), " + // green bottom-right
+          "radial-gradient(circle at 8% 12%, rgba(59,130,246,0.06) 0%, transparent 28%), " +
+          "radial-gradient(circle at 92% 84%, rgba(16,185,129,0.05) 0%, transparent 32%), " +
           "linear-gradient(180deg, #ffffff 0%, #fbffff 40%, #f7fffb 100%)",
         backgroundAttachment: "fixed",
       }}
@@ -468,7 +481,7 @@ export default function TimesheetDashboard({ onLogout }) {
         </div>
       </header>
 
-      {/* Week nav + actions - styled as a glass bar */}
+      {/* Week nav + actions */}
       <div className="flex items-center gap-3 mb-6">
         <div className="glass-card px-3 py-2 flex items-center gap-3 rounded-lg shadow-sm border">
           <button onClick={prevWeek} aria-label="Previous week" className="p-2 rounded-md hover:bg-slate-50 transition">
@@ -804,7 +817,7 @@ export default function TimesheetDashboard({ onLogout }) {
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Date</div>
-                  <div className="font-medium">{new Date(startDate).toLocaleDateString("en-GB")}</div>
+                  <div className="font-medium">{new Date(startDateUTC).toLocaleDateString("en-GB")}</div>
                 </div>
                 <div className="col-span-2">
                   <div className="text-xs text-slate-500">Ticket No</div>
@@ -825,15 +838,17 @@ export default function TimesheetDashboard({ onLogout }) {
 
       {/* styles */}
       <style>{`
-        /* Glass card utility */
         .glass-card {
           background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.55));
           border: 1px solid rgba(255,255,255,0.6);
           box-shadow: 0 4px 18px rgba(15,23,42,0.06);
           backdrop-filter: blur(6px) saturate(120%);
         }
+<<<<<<< HEAD
 
         /* Editor comment button / dot (existing) */
+=======
+>>>>>>> 22a844cd7f0806c68094af2099ff5962509779fb
         .comment-btn{
           position: absolute;
           top: 8px;
@@ -892,35 +907,25 @@ export default function TimesheetDashboard({ onLogout }) {
         }
 
         tfoot tr td { border-top: 0; text-align: center; }
-
-        /* Tiny animation for floating blobs — gentle movement */
         @keyframes floatY {
           0% { transform: translateY(0); }
           50% { transform: translateY(-10px); }
           100% { transform: translateY(0); }
         }
         .pointer-events-none > div { animation: floatY 9s ease-in-out infinite; }
-
-        /* responsive tweaks */
         @media (max-width: 900px) {
           .comment-btn { right: 6px; top: 6px; transform: scale(0.95); }
           .comment-dot { left: 6px; top: 6px; width: 7px; height: 7px; }
           .saved-cell { height: 64px; }
         }
-
-        /* status badges */
         .status-draft { background: #f1f5f9; color: #475569; }
         .status-submitted { background: #fff7ed; color: #92400e; }
         .status-approved { background: #ecfdf5; color: #064e3b; }
         .status-rejected { background: #fff1f2; color: #7f1d1d; }
-
-        /* small polished focus styles */
         input:focus, select:focus, textarea:focus, button:focus {
           outline: 2px solid rgba(99,102,241,0.12);
           outline-offset: 2px;
         }
-
-        /* rounded card shadow polish */
         .shadow-2xl { box-shadow: 0 10px 30px rgba(2,6,23,0.06); }
       `}</style>
     </div>
