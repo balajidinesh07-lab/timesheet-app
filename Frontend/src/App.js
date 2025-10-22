@@ -13,7 +13,9 @@ import LandingPage from "./pages/LandingPage.jsx";
 
 import PayrollDashboard from "./pages/PayrollDashboard.jsx"; // payroll main page
 import PayrollProfile from "./pages/PayrollProfile.jsx";     // payroll profile page (new)
-import LeaveDashboard from "./pages/LeaveDashboard.jsx";     // payroll -> leave subpage
+import LeaveDashboard from "./pages/LeaveDashboard.jsx"; 
+
+// payroll -> leave subpage
 // (Optional) if you create these later you can import them:
 // import PayslipPage from "./pages/PayslipPage.jsx";
 // import Form16Page from "./pages/Form16Page.jsx";
