@@ -1,8 +1,10 @@
+// routes/timesheets.js
 const express = require("express");
 const Timesheet = require("../models/Timesheet");
 const { protect, requireRole } = require("../middleware/auth");
 
 const router = express.Router();
+const DAYS_IN_WEEK = 7;
 
 /** No-cache headers */
 router.use((_, res, next) => {
@@ -13,7 +15,7 @@ router.use((_, res, next) => {
   next();
 });
 
-/** Build UTC day-range from YYYY-MM-DD */
+/** Build UTC day-range from YYYY-MM-DD (start of day) */
 function dayRange(isoDateStr) {
   if (!isoDateStr || typeof isoDateStr !== "string") return null;
   const start = new Date(`${isoDateStr}T00:00:00Z`);
@@ -74,24 +76,18 @@ router.post("/", protect, async (req, res) => {
     const range = dayRange(weekStart);
     if (!range) return res.status(400).json({ error: "Invalid or missing weekStart (YYYY-MM-DD)" });
 
-    // Accept either submit: true OR status: "submitted"
     const wantsSubmit =
       submit === true ||
       (typeof reqStatus === "string" && reqStatus.toLowerCase() === "submitted");
 
-    // Check existing record (if any) to decide next status
     const existing = await Timesheet.findOne({
       user: req.user._id,
       weekStart: { $gte: range.start, $lt: range.next },
     }).select("status");
 
-    // decide nextStatus (no-downgrade)
     let nextStatus = "draft";
-    if (wantsSubmit) {
-      nextStatus = "submitted";
-    } else if (existing) {
-      nextStatus = existing.status !== "draft" ? existing.status : "draft";
-    }
+    if (wantsSubmit) nextStatus = "submitted";
+    else if (existing) nextStatus = existing.status !== "draft" ? existing.status : "draft";
 
     const update = {
       user: req.user._id,
@@ -101,7 +97,6 @@ router.post("/", protect, async (req, res) => {
     };
     if (wantsSubmit) update.submittedAt = new Date();
 
-    // Atomic upsert, return updated doc
     const saved = await Timesheet.findOneAndUpdate(
       { user: req.user._id, weekStart: { $gte: range.start, $lt: range.next } },
       { $set: update },
@@ -116,6 +111,92 @@ router.post("/", protect, async (req, res) => {
     }
     console.error("Save error", err);
     res.status(500).json({ error: "Failed to save" });
+  }
+});
+
+/**
+ * POST /comments
+ * Body:
+ *   {
+ *     sheetId: string | null,       // if falsy (null/undefined) the server will find/create by weekStart+user
+ *     weekStart: "YYYY-MM-DD",      // required if sheetId is falsy
+ *     rowIndex: number,
+ *     dayIndex: number,             // 0..6
+ *     text: string
+ *   }
+ */
+router.post("/comments", protect, async (req, res) => {
+  try {
+    const { sheetId, weekStart, rowIndex, dayIndex, text } = req.body;
+
+    if (typeof rowIndex !== "number" || typeof dayIndex !== "number") {
+      return res.status(400).json({ error: "rowIndex and dayIndex must be numbers" });
+    }
+    if (dayIndex < 0 || dayIndex >= DAYS_IN_WEEK) {
+      return res.status(400).json({ error: "dayIndex out of range" });
+    }
+
+    let sheet = null;
+    if (sheetId) {
+      sheet = await Timesheet.findById(sheetId);
+      if (!sheet) return res.status(404).json({ error: "Timesheet not found" });
+      // only owner or manager/admin may update an arbitrary sheet
+      if (String(sheet.user) !== String(req.user._id) && req.user.role !== "admin" && req.user.role !== "manager") {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    } else {
+      const range = dayRange(weekStart);
+      if (!range) return res.status(400).json({ error: "Missing or invalid weekStart (YYYY-MM-DD)" });
+
+      sheet = await Timesheet.findOne({
+        user: req.user._id,
+        weekStart: { $gte: range.start, $lt: range.next },
+      });
+
+      if (!sheet) {
+        // create a new blank sheet for this week
+        const emptyRow = {
+          client: "",
+          project: "",
+          task: "",
+          activity: "",
+          hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0),
+          comments: Array.from({ length: DAYS_IN_WEEK }).map(() => null),
+        };
+        sheet = new Timesheet({
+          user: req.user._id,
+          weekStart: range.start,
+          rows: [emptyRow],
+          status: "draft",
+        });
+      }
+    }
+
+    // ensure rows array is large enough
+    while (sheet.rows.length <= rowIndex) {
+      sheet.rows.push({
+        client: "",
+        project: "",
+        task: "",
+        activity: "",
+        hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0),
+        comments: Array.from({ length: DAYS_IN_WEEK }).map(() => null),
+      });
+    }
+
+    // ensure comments array exists for target row
+    if (!Array.isArray(sheet.rows[rowIndex].comments)) {
+      sheet.rows[rowIndex].comments = Array.from({ length: DAYS_IN_WEEK }).map(() => null);
+    }
+
+    sheet.rows[rowIndex].comments[dayIndex] = (text === "" ? null : String(text));
+
+    await sheet.save();
+
+    res.json({ ok: true, sheet });
+  } catch (err) {
+    console.error("save comment error", err);
+    res.status(500).json({ error: "Failed to save comment" });
   }
 });
 
