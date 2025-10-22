@@ -566,7 +566,7 @@ export default function TimesheetDashboard({ onLogout }) {
                 {row.hours.map((h, dayIdx) => (
                   <td key={dayIdx} className="p-2 text-center relative">
                     <input aria-label={`Hours r${rowIdx+1} d${dayIdx+1}`} type="number" min="0" max="24" value={h} disabled={!editable} onChange={(e) => handleHourChange(rowIdx, dayIdx, e.target.value)} className="w-14 border rounded-lg text-center pr-8" />
-                    <button onClick={() => openCommentModal((sheetsForWeek[0] && sheetsForWeek[0]._id) || "", rowIdx, dayIdx, { client: row.client, project: row.project, task: row.task })} className="comment-btn" title="Add / view comment" aria-label="Add comment">
+                    <button onClick={() => openCommentModal((sheetsForWeek[0] && sheetsForWeek[0]._1) || "", rowIdx, dayIdx, { client: row.client, project: row.project, task: row.task })} className="comment-btn" title="Add / view comment" aria-label="Add comment">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2563EB" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
@@ -615,9 +615,11 @@ export default function TimesheetDashboard({ onLogout }) {
                 const expanded = (expandedSaved[id] === undefined) ? true : !!expandedSaved[id];
                 const selection = savedRowSelection[id] || { all: false, rows: {} };
 
-                const visibleRows = (s.rows || []).filter((r, i) => {
+                // preserve original row indices so comments & selections map correctly
+                const rowsWithIndex = (s.rows || []).map((r, i) => ({ r, i }));
+                const visibleRows = rowsWithIndex.filter(({ r }) => {
                   const rowTotal = Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0;
-                  return rowTotal > 0 || i === 0 || (r.client || r.project || r.task || r.activity);
+                  return rowTotal > 0 || (r.client || r.project || r.task || r.activity);
                 });
 
                 return (
@@ -656,38 +658,66 @@ export default function TimesheetDashboard({ onLogout }) {
 
                     {expanded && (
                       <div className="mt-3 bg-white rounded p-3 border">
-                        <table className="w-full text-sm">
-                          <thead className="text-slate-600 bg-slate-100">
-                            <tr>
-                              <th className="p-2 text-left">Client</th>
-                              <th className="p-2 text-left">Project</th>
-                              <th className="p-2 text-left">Task</th>
-                              <th className="p-2 text-left">Activity</th>
-                              {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => <th key={i} className="p-2 text-center">{dayLabels[i].split(" ")[0]}</th>)}
-                              <th className="p-2 text-center">Total</th>
-                              <th className="p-2 text-center">Select</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {visibleRows.length > 0 ? visibleRows.map((r, ridx) => {
-                              const rowTotal = Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0;
-                              const isChecked = !!(selection.rows && selection.rows[ridx]);
-                              return (
-                                <tr key={ridx} className="border-b">
-                                  <td className="p-2">{r.client}</td>
-                                  <td className="p-2">{r.project}</td>
-                                  <td className="p-2">{r.task}</td>
-                                  <td className="p-2">{r.activity}</td>
-                                  {Array.from({ length: DAYS_IN_WEEK }).map((_, di) => <td key={di} className="p-2 text-center">{(r.hours && r.hours[di] != null) ? r.hours[di] : 0}</td>)}
-                                  <td className="p-2 text-center font-medium">{rowTotal}</td>
-                                  <td className="p-2 text-center"><input type="checkbox" checked={isChecked} onChange={() => toggleSavedRow(id, ridx)} /></td>
-                                </tr>
-                              );
-                            }) : (
-                              <tr><td colSpan={12} className="p-3 text-center text-slate-500">No rows</td></tr>
-                            )}
-                          </tbody>
-                        </table>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm saved-table">
+                            <thead className="text-slate-600 bg-slate-100">
+                              <tr>
+                                <th className="p-2 text-left">Client</th>
+                                <th className="p-2 text-left">Project</th>
+                                <th className="p-2 text-left">Task</th>
+                                <th className="p-2 text-left">Activity</th>
+                                {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => <th key={i} className="p-2 text-center">{dayLabels[i].split(" ")[0]}</th>)}
+                                <th className="p-2 text-center">Total</th>
+                                <th className="p-2 text-center">Select</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {visibleRows.length > 0 ? visibleRows.map(({ r, i: ridx }) => {
+                                const rowTotal = Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0;
+                                const isChecked = !!(selection.rows && selection.rows[ridx]);
+                                return (
+                                  <tr key={ridx} className="border-b">
+                                    <td className="p-2 align-top">{r.client}</td>
+                                    <td className="p-2 align-top">{r.project}</td>
+                                    <td className="p-2 align-top">{r.task}</td>
+                                    <td className="p-2 align-top">{r.activity}</td>
+
+                                    {/* render per-day hours + comment icon (editable) */}
+                                    {Array.from({ length: DAYS_IN_WEEK }).map((_, di) => {
+                                      const commentText = (r.comments && r.comments[di]) || "";
+                                      const hoursVal = (r.hours && r.hours[di] != null) ? r.hours[di] : 0;
+                                      return (
+                                        <td key={di} className="p-2 text-center relative saved-cell">
+                                          <div className="hours-val text-sm font-medium">{hoursVal}</div>
+
+                                          {/* comment button — compact and bottom-right so it doesn't clash with hours */}
+                                          <button
+                                            onClick={() => openCommentModal(id, ridx, di, { client: r.client, project: r.project, task: r.task })}
+                                            className="comment-btn saved"
+                                            title={commentText ? "View / edit comment" : "Add comment"}
+                                            aria-label="View/Edit comment"
+                                          >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={commentText ? "#16a34a" : "#0ea5e9"} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                          </button>
+
+                                          {/* indicator dot if comment exists (top-right) */}
+                                          {commentText ? (<span className="comment-dot saved" />) : null}
+                                        </td>
+                                      );
+                                    })}
+
+                                    <td className="p-2 text-center font-medium align-top">{rowTotal}</td>
+                                    <td className="p-2 text-center align-top"><input type="checkbox" checked={isChecked} onChange={() => toggleSavedRow(id, ridx)} /></td>
+                                  </tr>
+                                );
+                              }) : (
+                                <tr><td colSpan={12} className="p-3 text-center text-slate-500">No rows</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -814,6 +844,11 @@ export default function TimesheetDashboard({ onLogout }) {
           box-shadow: 0 4px 18px rgba(15,23,42,0.06);
           backdrop-filter: blur(6px) saturate(120%);
         }
+<<<<<<< HEAD
+
+        /* Editor comment button / dot (existing) */
+=======
+>>>>>>> 22a844cd7f0806c68094af2099ff5962509779fb
         .comment-btn{
           position: absolute;
           top: 8px;
@@ -839,6 +874,38 @@ export default function TimesheetDashboard({ onLogout }) {
           background: #2563EB;
           box-shadow: 0 2px 6px rgba(37,99,235,0.18);
         }
+
+        /* Saved table specific adjustments */
+        .saved-table th, .saved-table td { vertical-align: middle; }
+        .saved-table td { padding: 0.6rem 0.75rem; }
+        .saved-cell { position: relative; min-width: 4.5rem; height: 56px; } /* consistent cell height */
+        .saved-cell .hours-val { display: flex; align-items: center; justify-content: center; height: 100%; color: #0f172a; }
+        .comment-btn.saved {
+          position: absolute;
+          right: 8px;
+          bottom: 8px;
+          width: 30px;
+          height: 30px;
+          padding: 4px;
+          border-radius: 9999px;
+          background: white;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+          border: 1px solid rgba(15,23,42,0.06);
+        }
+        .comment-dot.saved {
+          position: absolute;
+          right: 8px;
+          top: 8px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #16a34a; /* green for saved comment */
+          box-shadow: 0 2px 8px rgba(22,163,74,0.12);
+        }
+
         tfoot tr td { border-top: 0; text-align: center; }
         @keyframes floatY {
           0% { transform: translateY(0); }
@@ -849,6 +916,7 @@ export default function TimesheetDashboard({ onLogout }) {
         @media (max-width: 900px) {
           .comment-btn { right: 6px; top: 6px; transform: scale(0.95); }
           .comment-dot { left: 6px; top: 6px; width: 7px; height: 7px; }
+          .saved-cell { height: 64px; }
         }
         .status-draft { background: #f1f5f9; color: #475569; }
         .status-submitted { background: #fff7ed; color: #92400e; }
