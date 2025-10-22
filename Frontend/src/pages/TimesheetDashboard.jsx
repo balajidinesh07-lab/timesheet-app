@@ -6,31 +6,19 @@ import { http } from "../api/http";
 import logo from "../assets/logo-dark.png"; // update path if needed
 
 // --- helpers --------------------------------------------------------------
-const DAYS_IN_WEEK = 7; // Monday -> Sunday
-function getWeekRangeLocalToUTC(date) {
-  // date is a Date object (local)
+function getWeekRange(date) {
   const base = new Date(date);
   const day = base.getDay();
-  const diff = base.getDate() - day + (day === 0 ? -6 : 1); // local Monday date value
-  const localMonday = new Date(base);
-  localMonday.setHours(0, 0, 0, 0);
-  localMonday.setDate(diff);
-
-  // produce UTC midnight for that local Monday (so both client and server use same YYYY-MM-DD)
-  const utcMonday = new Date(Date.UTC(localMonday.getFullYear(), localMonday.getMonth(), localMonday.getDate(), 0, 0, 0, 0));
-
-  const sundayUtc = new Date(utcMonday);
-  sundayUtc.setUTCDate(sundayUtc.getUTCDate() + 6);
-  sundayUtc.setUTCHours(23, 59, 59, 999);
-
+  const diff = base.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(base);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(diff);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
   const fmt = (d) =>
     d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
-
-  // label uses local dates for user readability
-  const labelLocalEnd = new Date(localMonday);
-  labelLocalEnd.setDate(labelLocalEnd.getDate() + 6);
-
-  return { startDateUTC: utcMonday, endDateUTC: sundayUtc, label: `${fmt(localMonday)} - ${fmt(labelLocalEnd)}` };
+  return { startDate: monday, endDate: sunday, label: `${fmt(monday)} - ${fmt(sunday)}` };
 }
 
 // --- Task / Activity mapping ----------------------------------------------
@@ -71,13 +59,14 @@ const taskOptions = Object.keys(taskActivityMap);
 // ---- CONFIG ----
 const MAX_ROWS = 5;
 const MIN_ROWS = 2; // default rows to show when editor empty
+const DAYS_IN_WEEK = 7; // Monday -> Sunday
 
 const makeEmptyRow = () => ({
   client: "",
   project: "",
   task: "",
   activity: "",
-  hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0),
+  hours: Array.from({ length: DAYS_IN_WEEK }).map(() => 0), // Mon-Sun
   comments: Array.from({ length: DAYS_IN_WEEK }).map(() => null),
 });
 
@@ -112,8 +101,8 @@ export default function TimesheetDashboard({ onLogout }) {
   const gotoPayroll = () => navigate("/payroll");
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { startDateUTC, label } = useMemo(() => getWeekRangeLocalToUTC(currentDate), [currentDate]);
-  const weekStartStr = useMemo(() => startDateUTC.toISOString().slice(0, 10), [startDateUTC]);
+  const { startDate, label } = useMemo(() => getWeekRange(currentDate), [currentDate]);
+  const weekStartStr = useMemo(() => new Date(startDate).toISOString().slice(0, 10), [startDate]);
 
   const [rows, setRows] = useState(padToMinRows([]));
   const [status, setStatus] = useState("draft");
@@ -125,8 +114,10 @@ export default function TimesheetDashboard({ onLogout }) {
   const [savedRowSelection, setSavedRowSelection] = useState({});
   const [editingSaved, setEditingSaved] = useState(null);
   const [editingRows, setEditingRows] = useState([]);
+  // commentModal.meta.readOnly will mark whether textarea is editable
   const [commentModal, setCommentModal] = useState({ open: false, sheetId: null, rowIndex: null, dayIndex: null, text: "", meta: {} });
 
+  // profile info cached on first render
   const profile = useMemo(() => getProfileFromLocalStorage(), []);
 
   // row helpers
@@ -187,8 +178,8 @@ export default function TimesheetDashboard({ onLogout }) {
   const editable = status !== "approved" && status !== "rejected";
 
   // nav
-  const prevWeek = () => { const d = new Date(startDateUTC); d.setUTCDate(d.getUTCDate() - 7); setCurrentDate(new Date(d)); };
-  const nextWeek = () => { const d = new Date(startDateUTC); d.setUTCDate(d.getUTCDate() + 7); setCurrentDate(new Date(d)); };
+  const prevWeek = () => { const d = new Date(startDate); d.setDate(d.getDate() - 7); setCurrentDate(d); };
+  const nextWeek = () => { const d = new Date(startDate); d.setDate(d.getDate() + 7); setCurrentDate(d); };
 
   // editor row ops
   const addRow = () => { if (rows.length >= MAX_ROWS || !editable) return; setRows((r) => [...r, makeEmptyRow()]); };
@@ -339,33 +330,34 @@ export default function TimesheetDashboard({ onLogout }) {
   };
 
   // comments modal handlers
+  // meta.readOnly === true => modal is read-only (used for saved-list)
   const openCommentModal = (sheetId, rowIndex, dayIndex, meta = {}) => {
     let initialText = "";
     const sheet = sheetsForWeek.find((s) => (s._id || "") === sheetId) || null;
     if (sheet && Array.isArray(sheet.rows) && sheet.rows[rowIndex]) {
       initialText = (sheet.rows[rowIndex].comments && sheet.rows[rowIndex].comments[dayIndex]) || "";
     } else {
-      const r = rows[rowIndex];
+      // editor or editingSaved (if sheetId === "editor" or null)
+      const r = (sheetId === "editor" ? rows[rowIndex] : (editingRows && editingRows[rowIndex] ? editingRows[rowIndex] : null));
       if (r && r.comments) initialText = r.comments[dayIndex] || "";
     }
-    setCommentModal({ open: true, sheetId: sheetId || "editor", rowIndex, dayIndex, text: initialText, meta });
+
+    const defaultReadOnly = (sheetId && sheetId !== "editor" && (!meta.forceEditable));
+    setCommentModal({ open: true, sheetId: sheetId || "editor", rowIndex, dayIndex, text: initialText, meta: { ...meta, readOnly: !!meta.readOnly || defaultReadOnly } });
   };
   const closeCommentModal = () => setCommentModal({ open: false, sheetId: null, rowIndex: null, dayIndex: null, text: "", meta: {} });
 
   // IMPORTANT: call backend endpoint that will store comment into timesheet rows
   const saveComment = async () => {
     const { sheetId, rowIndex, dayIndex, text } = commentModal;
+    // do not save when readOnly
+    if (commentModal.meta && commentModal.meta.readOnly) {
+      closeCommentModal();
+      return;
+    }
     try {
       // backend endpoint: POST /timesheets/comments
-      // send sheetId null when editing editor (we use "editor" marker locally)
-      const payload = {
-        sheetId: sheetId === "editor" ? null : sheetId,
-        weekStart: weekStartStr,
-        rowIndex,
-        dayIndex,
-        text,
-      };
-      await http.post("/timesheets/comments", payload);
+      await http.post("/timesheets/comments", { sheetId: sheetId === "editor" ? null : sheetId, weekStart: weekStartStr, rowIndex, dayIndex, text });
 
       // update local copies for UI immediately
       setAllSheets((prev) =>
@@ -382,13 +374,24 @@ export default function TimesheetDashboard({ onLogout }) {
         })
       );
 
-      setRows((prev) => {
-        const copy = [...prev];
-        while (copy.length <= rowIndex) copy.push(makeEmptyRow());
-        copy[rowIndex] = { ...copy[rowIndex], comments: [...(copy[rowIndex].comments || Array(DAYS_IN_WEEK).fill(null))] };
-        copy[rowIndex].comments[dayIndex] = text;
-        return copy;
-      });
+      // If editing the editor or editingSaved, update the corresponding local rows too
+      if (sheetId === "editor") {
+        setRows((prev) => {
+          const copy = [...prev];
+          while (copy.length <= rowIndex) copy.push(makeEmptyRow());
+          copy[rowIndex] = { ...copy[rowIndex], comments: [...(copy[rowIndex].comments || Array(DAYS_IN_WEEK).fill(null))] };
+          copy[rowIndex].comments[dayIndex] = text;
+          return copy;
+        });
+      } else if (editingSaved && (commentModal.sheetId === (editingSaved._id || ""))) {
+        setEditingRows((prev) => {
+          const copy = [...prev];
+          while (copy.length <= rowIndex) copy.push(makeEmptyRow());
+          copy[rowIndex] = { ...copy[rowIndex], comments: [...(copy[rowIndex].comments || Array(DAYS_IN_WEEK).fill(null))] };
+          copy[rowIndex].comments[dayIndex] = text;
+          return copy;
+        });
+      }
 
       closeCommentModal();
       alert("Comment saved.");
@@ -403,22 +406,22 @@ export default function TimesheetDashboard({ onLogout }) {
     return sheet.rows.reduce((acc, r) => acc + (Array.isArray(r.hours) ? r.hours.reduce((a, h) => a + (parseInt(h, 10) || 0), 0) : 0), 0);
   };
 
-  // day labels (Mon..Sun) shown in local display (use startDateUTC but compute local labels)
+  // day labels (Mon..Sun)
   const dayLabels = Array.from({ length: DAYS_IN_WEEK }).map((_, i) => {
-    const d = new Date(startDateUTC);
-    d.setUTCDate(startDateUTC.getUTCDate() + i);
-    // show weekday short and day number in user locale (British format for small display)
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
     return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit" });
   });
 
-  // UI (same layout as before)
+  // UI
   return (
     <div
       className="relative min-h-screen p-6"
       style={{
+        // corporate modern: subtle layered gradients and soft radial blobs
         background:
-          "radial-gradient(circle at 8% 12%, rgba(59,130,246,0.06) 0%, transparent 28%), " +
-          "radial-gradient(circle at 92% 84%, rgba(16,185,129,0.05) 0%, transparent 32%), " +
+          "radial-gradient(circle at 8% 12%, rgba(59,130,246,0.06) 0%, transparent 28%), " + // blue top-left
+          "radial-gradient(circle at 92% 84%, rgba(16,185,129,0.05) 0%, transparent 32%), " + // green bottom-right
           "linear-gradient(180deg, #ffffff 0%, #fbffff 40%, #f7fffb 100%)",
         backgroundAttachment: "fixed",
       }}
@@ -481,7 +484,7 @@ export default function TimesheetDashboard({ onLogout }) {
         </div>
       </header>
 
-      {/* Week nav + actions */}
+      {/* Week nav + actions - styled as a glass bar */}
       <div className="flex items-center gap-3 mb-6">
         <div className="glass-card px-3 py-2 flex items-center gap-3 rounded-lg shadow-sm border">
           <button onClick={prevWeek} aria-label="Previous week" className="p-2 rounded-md hover:bg-slate-50 transition">
@@ -566,7 +569,7 @@ export default function TimesheetDashboard({ onLogout }) {
                 {row.hours.map((h, dayIdx) => (
                   <td key={dayIdx} className="p-2 text-center relative">
                     <input aria-label={`Hours r${rowIdx+1} d${dayIdx+1}`} type="number" min="0" max="24" value={h} disabled={!editable} onChange={(e) => handleHourChange(rowIdx, dayIdx, e.target.value)} className="w-14 border rounded-lg text-center pr-8" />
-                    <button onClick={() => openCommentModal((sheetsForWeek[0] && sheetsForWeek[0]._1) || "", rowIdx, dayIdx, { client: row.client, project: row.project, task: row.task })} className="comment-btn" title="Add / view comment" aria-label="Add comment">
+                    <button onClick={() => openCommentModal("editor", rowIdx, dayIdx, { readOnly: false })} className="comment-btn" title="Add / view comment" aria-label="Add comment">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#2563EB" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
@@ -623,7 +626,7 @@ export default function TimesheetDashboard({ onLogout }) {
                 });
 
                 return (
-                  <div key={id} className="border rounded-lg p-3 bg-slate-50">
+                  <div key={id} className="border rounded-lg p-3 bg-slate-50 relative">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div>
@@ -658,8 +661,18 @@ export default function TimesheetDashboard({ onLogout }) {
 
                     {expanded && (
                       <div className="mt-3 bg-white rounded p-3 border">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm saved-table">
+                        <div className="overflow-x-auto" style={{ paddingBottom: 6 }}>
+                          <table className="w-full text-sm saved-table" style={{ minWidth: 920 }}>
+                            <colgroup>
+                              <col style={{ width: "18%" }} />
+                              <col style={{ width: "18%" }} />
+                              <col style={{ width: "14%" }} />
+                              <col style={{ width: "14%" }} />
+                              {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => <col key={i} style={{ width: "6.5rem" }} />)}
+                              <col style={{ width: "6rem" }} />
+                              <col style={{ width: "3.5rem" }} />
+                            </colgroup>
+
                             <thead className="text-slate-600 bg-slate-100">
                               <tr>
                                 <th className="p-2 text-left">Client</th>
@@ -677,33 +690,18 @@ export default function TimesheetDashboard({ onLogout }) {
                                 const isChecked = !!(selection.rows && selection.rows[ridx]);
                                 return (
                                   <tr key={ridx} className="border-b">
-                                    <td className="p-2 align-top">{r.client}</td>
-                                    <td className="p-2 align-top">{r.project}</td>
-                                    <td className="p-2 align-top">{r.task}</td>
-                                    <td className="p-2 align-top">{r.activity}</td>
+                                    <td className="p-2 align-top text-sm text-slate-700">{r.client}</td>
+                                    <td className="p-2 align-top text-sm text-slate-700">{r.project}</td>
+                                    <td className="p-2 align-top text-sm text-slate-700">{r.task}</td>
+                                    <td className="p-2 align-top text-sm text-slate-700">{r.activity}</td>
 
-                                    {/* render per-day hours + comment icon (editable) */}
                                     {Array.from({ length: DAYS_IN_WEEK }).map((_, di) => {
-                                      const commentText = (r.comments && r.comments[di]) || "";
                                       const hoursVal = (r.hours && r.hours[di] != null) ? r.hours[di] : 0;
                                       return (
-                                        <td key={di} className="p-2 text-center relative saved-cell">
-                                          <div className="hours-val text-sm font-medium">{hoursVal}</div>
-
-                                          {/* comment button — compact and bottom-right so it doesn't clash with hours */}
-                                          <button
-                                            onClick={() => openCommentModal(id, ridx, di, { client: r.client, project: r.project, task: r.task })}
-                                            className="comment-btn saved"
-                                            title={commentText ? "View / edit comment" : "Add comment"}
-                                            aria-label="View/Edit comment"
-                                          >
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-                                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={commentText ? "#16a34a" : "#0ea5e9"} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                                            </svg>
-                                          </button>
-
-                                          {/* indicator dot if comment exists (top-right) */}
-                                          {commentText ? (<span className="comment-dot saved" />) : null}
+                                        <td key={di} className="p-2 text-center saved-day-cell-no-comments">
+                                          {/* visible hours element (centered) */}
+                                          <div className="hours-val" aria-hidden>{hoursVal}</div>
+                                          {/* per your request, comments removed from saved view */}
                                         </td>
                                       );
                                     })}
@@ -741,49 +739,85 @@ export default function TimesheetDashboard({ onLogout }) {
 
             <div className="mb-4"><div className="text-sm text-slate-500">Status: <StatusBadge s={editingSaved.status} /></div></div>
 
+            {/* --- Edit modal uses saved-table styling so rows match saved-list visuals --- */}
             <div className="overflow-x-auto bg-white border rounded p-3">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm saved-table edit-table" style={{ minWidth: 920 }}>
                 <colgroup>
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "16%" }} />
                   <col style={{ width: "18%" }} />
-                  {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => (<col key={i} style={{ width: "4.5rem" }} />))}
-                  <col style={{ width: "5rem" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "14%" }} />
+                  {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => (<col key={i} style={{ width: "6.5rem" }} />))}
+                  <col style={{ width: "6rem" }} />
                 </colgroup>
-                <thead className="bg-slate-100 text-slate-700">
+
+                <thead className="text-slate-600 bg-slate-100">
                   <tr>
                     <th className="p-2 text-left">Client</th>
                     <th className="p-2 text-left">Project</th>
                     <th className="p-2 text-left">Task</th>
                     <th className="p-2 text-left">Activity</th>
-                    {dayLabels.map((d, i) => <th key={i} className="p-2 text-center">{d.split(" ")[0]}</th>)}
+                    {Array.from({ length: DAYS_IN_WEEK }).map((_, i) => <th key={i} className="p-2 text-center">{dayLabels[i].split(" ")[0]}</th>)}
                     <th />
                   </tr>
                 </thead>
+
                 <tbody>
                   {editingRows.map((r, ridx) => (
                     <tr key={ridx} className="border-b">
-                      <td className="p-2"><input value={r.client} onChange={(e) => editingChange(ridx, "client", e.target.value)} className="w-full border rounded p-2" /></td>
-                      <td className="p-2"><input value={r.project} onChange={(e) => editingChange(ridx, "project", e.target.value)} className="w-full border rounded p-2" /></td>
-                      <td className="p-2">
-                        <select value={r.task} onChange={(e) => editingChange(ridx, "task", e.target.value)} className="w-full border rounded p-2">
+                      <td className="p-2 align-top text-sm text-slate-700">
+                        <input value={r.client} onChange={(e) => editingChange(ridx, "client", e.target.value)} className="w-full border rounded px-2 py-2 text-sm" />
+                      </td>
+                      <td className="p-2 align-top text-sm text-slate-700">
+                        <input value={r.project} onChange={(e) => editingChange(ridx, "project", e.target.value)} className="w-full border rounded px-2 py-2 text-sm" />
+                      </td>
+                      <td className="p-2 align-top text-sm text-slate-700">
+                        <select value={r.task} onChange={(e) => editingChange(ridx, "task", e.target.value)} className="w-full border rounded px-2 py-2 text-sm">
                           <option value="">-- Select --</option>
                           {taskOptions.map((t) => (<option key={t} value={t}>{t}</option>))}
                         </select>
                       </td>
-                      <td className="p-2">
-                        <select value={r.activity} onChange={(e) => editingChange(ridx, "activity", e.target.value)} className="w-full border rounded p-2">
+                      <td className="p-2 align-top text-sm text-slate-700">
+                        <select value={r.activity} onChange={(e) => editingChange(ridx, "activity", e.target.value)} className="w-full border rounded px-2 py-2 text-sm">
                           <option value="">-- Select --</option>
                           {(taskActivityMap[r.task] || []).map((a) => <option key={a} value={a}>{a}</option>)}
                         </select>
                       </td>
-                      {r.hours.map((h, di) => (
-                        <td key={di} className="p-2 text-center">
-                          <input type="number" min="0" max="24" value={h} onChange={(e) => editingHourChange(ridx, di, e.target.value)} className="w-14 border rounded text-center" />
-                        </td>
-                      ))}
-                      <td className="p-2 text-center"><button onClick={() => editingRemoveRow(ridx)} className="bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></td>
+
+                      {r.hours.map((h, di) => {
+                        const savedComment = (r.comments && r.comments[di]) || "";
+                        return (
+                          <td key={di} className="p-2 text-center relative edit-day-cell">
+                            <input
+                              type="number"
+                              min="0"
+                              max="24"
+                              value={h}
+                              onChange={(e) => editingHourChange(ridx, di, e.target.value)}
+                              className="w-14 h-8 border rounded text-center text-sm"
+                            />
+
+                            {/* floating comment button (editable in edit modal) */}
+                            <button
+                              onClick={() => openCommentModal(editingSaved._id || "", ridx, di, { readOnly: false, forceEditable: true })}
+                              className="comment-btn edit-comment-btn"
+                              title={savedComment ? "View / edit comment" : "Add comment"}
+                              aria-label="Edit comment"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={savedComment ? "#16a34a" : "#0ea5e9"} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+
+                            {/* indicator dot in edit modal (optional) */}
+                            {savedComment ? (<span className="comment-dot" />) : null}
+                          </td>
+                        );
+                      })}
+
+                      <td className="p-2 text-center align-top">
+                        <button onClick={() => editingRemoveRow(ridx)} className="bg-red-100 text-red-700 px-3 py-1 rounded">Delete</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -801,7 +835,7 @@ export default function TimesheetDashboard({ onLogout }) {
       {/* Comments modal */}
       {commentModal.open && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-[480px] max-w-[94%]">
+          <div className="bg-white rounded-xl shadow-2xl w-[560px] max-w-[96%]">
             <div className="bg-indigo-700 rounded-t-xl px-6 py-3 text-white">
               <div className="flex items-center justify-between">
                 <h4 className="text-lg font-semibold">Comments</h4>
@@ -813,23 +847,36 @@ export default function TimesheetDashboard({ onLogout }) {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <div className="text-xs text-slate-500">Timesheet for</div>
-                  <div className="font-medium">{commentModal.meta.task || commentModal.meta.project || "—"}</div>
+                  <div className="font-medium">{commentModal.meta?.task || commentModal.meta?.project || "—"}</div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Date</div>
-                  <div className="font-medium">{new Date(startDateUTC).toLocaleDateString("en-GB")}</div>
+                  <div className="font-medium">{new Date(startDate).toLocaleDateString("en-GB")}</div>
                 </div>
                 <div className="col-span-2">
                   <div className="text-xs text-slate-500">Ticket No</div>
-                  <div className="font-medium">{commentModal.meta.ticketNo || "N/A"}</div>
+                  <div className="font-medium">{commentModal.meta?.ticketNo || "N/A"}</div>
                 </div>
               </div>
 
-              <textarea value={commentModal.text} onChange={(e) => setCommentModal((c) => ({ ...c, text: e.target.value }))} rows={6} placeholder="Enter comments..." className="w-full border rounded px-3 py-2 text-sm focus:outline-none" />
+              <textarea
+                value={commentModal.text}
+                onChange={(e) => setCommentModal((c) => ({ ...c, text: e.target.value }))}
+                rows={6}
+                placeholder="Enter comments..."
+                className="w-full border rounded px-3 py-2 text-sm focus:outline-none"
+                disabled={!!(commentModal.meta && commentModal.meta.readOnly)}
+              />
 
               <div className="mt-4 flex justify-end gap-3">
                 <button onClick={() => closeCommentModal()} className="px-4 py-2 rounded-lg border">Cancel</button>
-                <button onClick={() => saveComment()} className="px-4 py-2 rounded-lg bg-emerald-600 text-white">Save</button>
+                <button
+                  onClick={() => saveComment()}
+                  className={`px-4 py-2 rounded-lg ${commentModal.meta && commentModal.meta.readOnly ? "bg-gray-200 text-gray-600 cursor-not-allowed" : "bg-emerald-600 text-white"}`}
+                  disabled={!!(commentModal.meta && commentModal.meta.readOnly)}
+                >
+                  Save
+                </button>
               </div>
             </div>
           </div>
@@ -838,32 +885,32 @@ export default function TimesheetDashboard({ onLogout }) {
 
       {/* styles */}
       <style>{`
+        /* Glass card utility */
         .glass-card {
           background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.55));
           border: 1px solid rgba(255,255,255,0.6);
           box-shadow: 0 4px 18px rgba(15,23,42,0.06);
           backdrop-filter: blur(6px) saturate(120%);
         }
-<<<<<<< HEAD
 
-        /* Editor comment button / dot (existing) */
-=======
->>>>>>> 22a844cd7f0806c68094af2099ff5962509779fb
         .comment-btn{
           position: absolute;
-          top: 8px;
-          right: 8px;
+          top: 6px;
+          right: 6px;
           background: white;
           border-radius: 6px;
-          padding: 6px;
+          padding: 5px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 18px rgba(2,6,23,0.08);
+          box-shadow: 0 6px 18px rgba(2,6,23,0.08);
           border: 1px solid rgba(16,24,40,0.06);
           cursor: pointer;
+          z-index: 6;
+          transition: transform .12s ease, background .12s ease;
         }
-        .comment-btn:hover { background: #f8fafc; transform: translateY(-1px); }
+        .comment-btn:hover { transform: translateY(-3px); background:#f8fafc; }
+
         .comment-dot {
           position: absolute;
           left: 8px;
@@ -875,57 +922,55 @@ export default function TimesheetDashboard({ onLogout }) {
           box-shadow: 0 2px 6px rgba(37,99,235,0.18);
         }
 
-        /* Saved table specific adjustments */
-        .saved-table th, .saved-table td { vertical-align: middle; }
-        .saved-table td { padding: 0.6rem 0.75rem; }
-        .saved-cell { position: relative; min-width: 4.5rem; height: 56px; } /* consistent cell height */
-        .saved-cell .hours-val { display: flex; align-items: center; justify-content: center; height: 100%; color: #0f172a; }
-        .comment-btn.saved {
-          position: absolute;
-          right: 8px;
-          bottom: 8px;
-          width: 30px;
-          height: 30px;
-          padding: 4px;
-          border-radius: 9999px;
-          background: white;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 6px 18px rgba(2,6,23,0.06);
-          border: 1px solid rgba(15,23,42,0.06);
-        }
-        .comment-dot.saved {
-          position: absolute;
-          right: 8px;
-          top: 8px;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #16a34a; /* green for saved comment */
-          box-shadow: 0 2px 8px rgba(22,163,74,0.12);
-        }
+        /* ===== SAVED TABLE: cleaned — no comment icons/dots =====
+           - hours visible and centered
+           - no reserved space for comment icons in saved-list
+        */
+        .saved-table td, .saved-table th { vertical-align: middle; color: #374151; }
+        .saved-table td { position: relative; padding-right: 12px; }
+        .saved-table .hours-val { display: block; font-weight: 600; font-size: 14px; line-height: 1; margin-top: 6px; }
+
+        .saved-day-cell-no-comments { padding: 10px 12px; }
+
+        /* edit modal specific - match saved-list sizes but keep comment UI */
+        .edit-table td, .edit-table th { vertical-align: middle; }
+        .edit-table td { position: relative; padding-right: 56px; } /* reserve space for comment button in edit modal */
+        .edit-day-cell { position: relative; padding-right: 64px; }
+        .edit-comment-btn { top:6px; right:8px; z-index: 8; }
 
         tfoot tr td { border-top: 0; text-align: center; }
+
+        /* Tiny animation for floating blobs — gentle movement */
         @keyframes floatY {
           0% { transform: translateY(0); }
           50% { transform: translateY(-10px); }
           100% { transform: translateY(0); }
         }
         .pointer-events-none > div { animation: floatY 9s ease-in-out infinite; }
-        @media (max-width: 900px) {
-          .comment-btn { right: 6px; top: 6px; transform: scale(0.95); }
-          .comment-dot { left: 6px; top: 6px; width: 7px; height: 7px; }
-          .saved-cell { height: 64px; }
+
+        /* responsive tweaks */
+        @media (max-width: 1100px) {
+          .saved-table { min-width: 820px; }
+          .edit-table { min-width: 820px; }
         }
+        @media (max-width: 900px) {
+          .comment-btn { right: 5px; top: 5px; transform: scale(0.95); }
+          .comment-dot { left: 6px; top: 6px; width: 7px; height: 7px; }
+        }
+
+        /* status badges */
         .status-draft { background: #f1f5f9; color: #475569; }
         .status-submitted { background: #fff7ed; color: #92400e; }
         .status-approved { background: #ecfdf5; color: #064e3b; }
         .status-rejected { background: #fff1f2; color: #7f1d1d; }
+
+        /* small polished focus styles */
         input:focus, select:focus, textarea:focus, button:focus {
           outline: 2px solid rgba(99,102,241,0.12);
           outline-offset: 2px;
         }
+
+        /* rounded card shadow polish */
         .shadow-2xl { box-shadow: 0 10px 30px rgba(2,6,23,0.06); }
       `}</style>
     </div>
