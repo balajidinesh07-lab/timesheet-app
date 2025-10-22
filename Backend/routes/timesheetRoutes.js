@@ -114,6 +114,86 @@ router.post("/", protect, async (req, res) => {
   }
 });
 
+// inside routes/timesheets.js (replace previous handler)
+router.post("/:id/submit-rows", protect, async (req, res) => {
+  try {
+    const sourceId = req.params.id;
+    const { weekStart, rows } = req.body;
+
+    console.log("[submit-rows] incoming", { sourceId, weekStart, rowsType: Array.isArray(rows) ? `array(${rows.length})` : typeof rows });
+
+    if (!Array.isArray(rows)) {
+      return res.status(400).json({ error: "Invalid payload: 'rows' must be an array." });
+    }
+    if (rows.length === 0) {
+      return res.status(400).json({ error: "Invalid payload: 'rows' must be a non-empty array." });
+    }
+
+    // find source sheet (to validate existence & permission)
+    const source = await Timesheet.findById(sourceId);
+    if (!source) return res.status(404).json({ error: "Source timesheet not found" });
+
+    if (String(source.user) !== String(req.user._id) && req.user.role !== "admin" && req.user.role !== "manager") {
+      return res.status(403).json({ error: "Forbidden to submit rows from this sheet" });
+    }
+
+    // Accept weekStart from body; if missing, try to derive from source.weekStart
+    const effectiveWeekStart = typeof weekStart === "string" && weekStart.length >= 10
+      ? weekStart.slice(0, 10)
+      : (source.weekStart ? new Date(source.weekStart).toISOString().slice(0,10) : null);
+
+    const range = dayRange(effectiveWeekStart);
+    if (!range) return res.status(400).json({ error: "Invalid or missing weekStart (expected YYYY-MM-DD)." });
+
+    // normalize and validate rows shape early to give better errors
+    const normalized = rows.map((r, idx) => {
+      if (!r || typeof r !== "object") throw new Error(`Row at index ${idx} is not an object`);
+      const hours = Array.isArray(r.hours) ? r.hours.slice(0, 7).map(h => {
+        const n = Number(h);
+        return Number.isFinite(n) ? Math.max(0, Math.min(24, Math.trunc(n))) : 0;
+      }) : Array.from({ length: 7 }).map(() => 0);
+      const comments = Array.isArray(r.comments) ? r.comments.slice(0, 7).map(c => (c == null ? null : String(c))) : Array.from({ length: 7 }).map(() => null);
+      return {
+        client: r.client || "",
+        project: r.project || "",
+        task: r.task || "",
+        activity: r.activity || "",
+        hours,
+        comments,
+      };
+    });
+
+    // find or create destination timesheet for the logged-in user and the weekStart
+    let dest = await Timesheet.findOne({
+      user: req.user._id,
+      weekStart: { $gte: range.start, $lt: range.next },
+    });
+
+    if (!dest) {
+      dest = new Timesheet({
+        user: req.user._id,
+        weekStart: range.start,
+        rows: normalized,
+        status: "submitted",
+        submittedAt: new Date(),
+      });
+      await dest.save();
+    } else {
+      dest.rows = dest.rows.concat(normalized).slice(0, 1000);
+      dest.status = "submitted";
+      dest.submittedAt = new Date();
+      await dest.save();
+    }
+
+    return res.json({ ok: true, destId: dest._id });
+  } catch (err) {
+    console.error("[submit-rows] error:", err && err.message ? err.message : err);
+    // If the error is the thrown row-shape error above, return its message
+    return res.status(500).json({ error: err.message || "Failed to submit selected rows" });
+  }
+});
+
+
 /**
  * POST /comments
  * Body:
