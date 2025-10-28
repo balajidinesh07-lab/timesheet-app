@@ -1,0 +1,9 @@
+{
+  "extends": ["react-app", "react-app/jest"],
+  "rules": {
+    "react/prop-types": "off",
+    "no-unused-vars": "warn",
+    "react/no-unescaped-entities": "off",
+    "react/no-unknown-property": ["error", { "ignore": ["class", "fill-rule", "fillRule"] }]
+  }
+}

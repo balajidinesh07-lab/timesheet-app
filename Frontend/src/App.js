@@ -1,24 +1,24 @@
 // src/App.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import PropTypes from "prop-types";
 
 import AuthPage from "./pages/AuthPage.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import TimesheetDashboard from "./pages/TimesheetDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import ManagerDashboard from "./pages/ManagerDashboard.jsx";
+// Optional manager leaves page — lazy loaded so missing file won't break compile
+const ManagerLeaveDashboard = lazy(() =>
+  import("./pages/ManagerLeaveDashboard.jsx").catch(() => ({ default: null }))
+);
 import ForceResetPassword from "./pages/ForceResetPassword.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 
-import PayrollDashboard from "./pages/PayrollDashboard.jsx"; // payroll main page
-import PayrollProfile from "./pages/PayrollProfile.jsx";     // payroll profile page (new)
-import LeaveDashboard from "./pages/LeaveDashboard.jsx"; 
-
-// payroll -> leave subpage
-// (Optional) if you create these later you can import them:
-// import PayslipPage from "./pages/PayslipPage.jsx";
-// import Form16Page from "./pages/Form16Page.jsx";
+import PayrollDashboard from "./pages/PayrollDashboard.jsx";
+import PayrollProfile from "./pages/PayrollProfile.jsx";
+import LeaveDashboard from "./pages/LeaveDashboard.jsx";
 
 // safe JSON parse helper
 function safeParse(key) {
@@ -27,11 +27,16 @@ function safeParse(key) {
     if (!raw || raw === "undefined" || raw === "null") return null;
     return JSON.parse(raw);
   } catch (e) {
+    // parsing failed, return null and log
     console.error(`Failed to parse ${key}`, e);
     return null;
   }
 }
 
+/**
+ * PrivateRoute
+ * - role may be a string (e.g. "manager") or an array of allowed roles (e.g. ["admin","manager"])
+ */
 function PrivateRoute({ children, role, token, user }) {
   const location = useLocation();
 
@@ -43,36 +48,66 @@ function PrivateRoute({ children, role, token, user }) {
     return <Navigate to="/force-reset" replace state={{ from: location }} />;
   }
 
-  // Role mismatch -> redirect to user's role dashboard
-  if (role && user.role !== role) {
-    return <Navigate to={`/${user.role}`} replace />;
+  // Role check: role can be undefined (no restriction), a string, or an array of strings
+  if (role) {
+    if (Array.isArray(role)) {
+      if (!role.includes(user.role)) return <Navigate to={`/${user.role}`} replace />;
+    } else {
+      if (user.role !== role) return <Navigate to={`/${user.role}`} replace />;
+    }
   }
 
   return children;
 }
 
+PrivateRoute.propTypes = {
+  children: PropTypes.node,
+  role: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
+  token: PropTypes.string,
+  user: PropTypes.object,
+};
+
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem("token") || "";
+    } catch {
+      return "";
+    }
+  });
   const [user, setUser] = useState(() => safeParse("user"));
 
   const handleAuth = (t, u) => {
     setToken(t);
     setUser(u);
-    localStorage.setItem("token", t || "");
-    localStorage.setItem("user", JSON.stringify(u || {}));
+    try {
+      localStorage.setItem("token", t || "");
+      localStorage.setItem("user", JSON.stringify(u || {}));
+    } catch (e) {
+      console.warn("Unable to persist auth to localStorage", e);
+    }
   };
 
   const handleLogout = () => {
     setToken("");
     setUser(null);
-    localStorage.clear();
+    try {
+      localStorage.clear();
+    } catch (e) {
+      console.warn("Failed to clear localStorage", e);
+    }
   };
 
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === "token" || e.key === "user") {
-        setToken(localStorage.getItem("token") || "");
-        setUser(safeParse("user"));
+        try {
+          setToken(localStorage.getItem("token") || "");
+          setUser(safeParse("user"));
+        } catch {
+          setToken("");
+          setUser(null);
+        }
       }
     };
     window.addEventListener("storage", onStorage);
@@ -103,12 +138,34 @@ export default function App() {
           }
         />
 
-        {/* Protected - Manager */}
+        {/* Protected - Manager (main dashboard) */}
         <Route
           path="/manager"
           element={
             <PrivateRoute role="manager" token={token} user={user}>
               <ManagerDashboard onLogout={handleLogout} />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Optional Manager: Leave approvals page (lazy loaded).
+            If the file doesn't exist, the lazy import resolves to a component that renders null.
+            We wrap in Suspense and render a fallback message when the lazy component is null. */}
+        <Route
+          path="/manager/leaves"
+          element={
+            <PrivateRoute role="manager" token={token} user={user}>
+              <Suspense fallback={<div className="p-6">Loading manager leaves…</div>}>
+                {/* ManagerLeaveDashboard may be `null` (if import failed). Render fallback message in that case. */}
+                <React.Suspense fallback={<div className="p-6">Loading manager leaves…</div>}>
+                  {/* The inner Suspense is harmless; we use ternary safely by rendering the component or a placeholder */}
+                  {typeof ManagerLeaveDashboard === "function" ? (
+                    <ManagerLeaveDashboard onLogout={handleLogout} />
+                  ) : (
+                    <div className="p-6">Manager Leave approvals currently unavailable.</div>
+                  )}
+                </React.Suspense>
+              </Suspense>
             </PrivateRoute>
           }
         />
@@ -143,7 +200,7 @@ export default function App() {
           }
         />
 
-        {/* Payroll subpages (leave, payslip, forms etc.) */}
+        {/* Payroll subpages (leave) */}
         <Route
           path="/payroll/leave"
           element={
@@ -153,25 +210,7 @@ export default function App() {
           }
         />
 
-        {/* Example additional payroll subroutes you may add later */}
-        {/* <Route
-          path="/payroll/payslip"
-          element={
-            <PrivateRoute role="employee" token={token} user={user}>
-              <PayslipPage />
-            </PrivateRoute>
-          }
-        /> */}
-        {/* <Route
-          path="/payroll/form16"
-          element={
-            <PrivateRoute role="employee" token={token} user={user}>
-              <Form16Page />
-            </PrivateRoute>
-          }
-        /> */}
-
-        {/* Catch-all: if user/session present redirect to role dashboard otherwise to landing */}
+        {/* Catch-all: if user/session present, redirect to their role dashboard; otherwise to landing */}
         <Route
           path="*"
           element={
