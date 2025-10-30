@@ -23,9 +23,6 @@ import {
   Layers,
   User,
   Calendar as CalendarIcon,
-  CheckCircle,
-  XCircle,
-  MoreHorizontal,
 } from "lucide-react";
 
 // Lazy-load optional manager leaves page (won't break if file missing)

@@ -8,10 +8,6 @@ import ResetPassword from "./pages/ResetPassword.jsx";
 import TimesheetDashboard from "./pages/TimesheetDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import ManagerDashboard from "./pages/ManagerDashboard.jsx";
-// Optional manager leaves page — lazy loaded so missing file won't break compile
-const ManagerLeaveDashboard = lazy(() =>
-  import("./pages/ManagerLeaveDashboard.jsx").catch(() => ({ default: null }))
-);
 import ForceResetPassword from "./pages/ForceResetPassword.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
@@ -19,6 +15,11 @@ import LandingPage from "./pages/LandingPage.jsx";
 import PayrollDashboard from "./pages/PayrollDashboard.jsx";
 import PayrollProfile from "./pages/PayrollProfile.jsx";
 import LeaveDashboard from "./pages/LeaveDashboard.jsx";
+
+// Optional manager leaves page - lazy loaded so missing file will not break compilation
+const ManagerLeaveDashboard = lazy(() =>
+  import("./pages/ManagerLeaveDashboard.jsx").catch(() => ({ default: null }))
+);
 
 // safe JSON parse helper
 function safeParse(key) {

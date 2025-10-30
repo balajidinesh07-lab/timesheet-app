@@ -9,7 +9,8 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 const timesheetRoutes = require("./routes/timesheetRoutes");
-const managerRoutes = require("./routes/managerRoutes"); // ✅ Added
+const managerRoutes = require("./routes/managerRoutes");
+const leaveRoutes = require("./routes/leaveRoutes");
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/timesheets", timesheetRoutes);
 app.use("/api/manager", managerRoutes); // ✅ /api/manager/*
+app.use("/api/leaves", leaveRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => res.json({ ok: true }));
@@ -55,3 +57,6 @@ mongoose
     console.error("❌ Mongo connection error:", err);
     process.exit(1); // Exit app if DB connection fails
   });
+
+
+

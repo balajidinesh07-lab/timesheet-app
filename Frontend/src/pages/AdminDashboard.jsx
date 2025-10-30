@@ -8,7 +8,6 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  Legend,
 } from "recharts";
 
 // Colors for Pie Chart
