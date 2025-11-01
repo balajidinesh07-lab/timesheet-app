@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo-dark.png";
+import { getUser as getSessionUser } from "../utils/session";
 
 /**
  * Upgraded PayrollProfile.jsx
@@ -100,8 +101,9 @@ export default function PayrollProfile() {
         setProfile((p) => ({ ...p, ...parsed }));
         setDraft((d) => ({ ...d, ...parsed }));
       } else {
-        const name = localStorage.getItem("name");
-        const email = localStorage.getItem("email");
+        const sessionUser = getSessionUser() || {};
+        const name = sessionUser.name || localStorage.getItem("name");
+        const email = sessionUser.email || localStorage.getItem("email");
         const photo = localStorage.getItem("profilePhoto");
         setProfile((p) => ({ ...p, name: name || p.name, email: email || p.email, photo: photo || p.photo }));
         setDraft((d) => ({ ...d, name: name || d.name, email: email || d.email, photo: photo || d.photo }));

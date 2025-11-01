@@ -28,9 +28,9 @@ router.post("/login", async (req, res) => {
 
     // Normalize
     email = (email || "").trim().toLowerCase();
-    password = (password || "").trim();
+    password = password ?? "";
 
-    if (!email || !password) {
+    if (!email || typeof password !== "string" || password.length === 0) {
       return res.status(400).json({ error: "Email and password are required" });
     }
 

@@ -22,9 +22,6 @@ export default function AuthPage({ onAuth }) {
       const { token, user } = await http.post("/auth/login", { email, password });
       if (!token) throw new Error("No token returned");
 
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user || {}));
-
       onAuth(token, user);
 
       if (user.mustResetPassword) return navigate("/force-reset");

@@ -5,6 +5,44 @@ import logo from "../assets/logo-dark.png"; // keep your existing asset
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const demoTiles = [
+    {
+      title: "Download Payslip",
+      description: "Grab your latest salary slip as a PDF in a click.",
+      tag: "Finance",
+      glyph: "PS",
+      accent: "bg-blue-100 text-blue-600",
+      cta: "Download sample",
+      to: "/payroll/profile",
+    },
+    {
+      title: "Update Timesheet",
+      description: "Log project hours for the week with autosave drafts.",
+      tag: "Timesheets",
+      glyph: "TS",
+      accent: "bg-emerald-100 text-emerald-600",
+      cta: "Open editor",
+      to: "/employee",
+    },
+    {
+      title: "Project Pulse",
+      description: "See project health and staffing in one snapshot.",
+      tag: "Manager view",
+      glyph: "PP",
+      accent: "bg-purple-100 text-purple-600",
+      cta: "See dashboard",
+      to: "/manager",
+    },
+    {
+      title: "Leave Approvals",
+      description: "Review, approve, or decline requests with context.",
+      tag: "People ops",
+      glyph: "LA",
+      accent: "bg-amber-100 text-amber-600",
+      cta: "Review queue",
+      to: "/manager/leaves",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -75,56 +113,60 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Right: Decorative panel (removed mini timesheet preview, added illustration + CTA) */}
+        {/* Right: demo tiles */}
         <aside className="relative">
           <div className="rounded-2xl bg-white p-8 shadow-2xl border border-gray-50">
-            <div className="text-sm text-gray-400 uppercase mb-4">Live demo</div>
+            <div className="text-sm text-gray-400 uppercase mb-2">Live demo</div>
+            <h3 className="text-lg font-semibold text-gray-800">Explore the workspace</h3>
+            <p className="text-sm text-gray-600 mt-2">
+              Four quick tiles highlight the workflows teams use most. Each tile opens that area of the demo app.
+            </p>
 
-            <div className="rounded-lg border border-gray-100 p-6 bg-gradient-to-tr from-white to-gray-50 shadow-inner">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-medium text-gray-700">Employee Timesheet</div>
-                <div className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700">Preview</div>
-              </div>
-
-              {/* simplified illustrative rows */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">C1 • P1</div>
-                  <div className="flex gap-2">
-                    {[9,1,1,2,2,0].map((n, i) => (
-                      <div key={i} className="w-8 h-8 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 font-semibold shadow-sm">
-                        {n}
-                      </div>
-                    ))}
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {demoTiles.map((tile) => (
+                <div
+                  key={tile.title}
+                  className="group rounded-xl border border-gray-100 bg-white/80 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                >
+                  <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-400">
+                    <span>{tile.tag}</span>
+                    <span className="font-semibold text-emerald-600">Preview</span>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">C2 • P2</div>
-                  <div className="flex gap-2">
-                    {[2,3,3,3,3,0].map((n, i) => (
-                      <div key={i} className="w-8 h-8 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 font-semibold shadow-sm">
-                        {n}
-                      </div>
-                    ))}
+                  <div className="mt-3 flex items-center gap-3">
+                    <div
+                      className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-bold ${tile.accent}`}
+                    >
+                      {tile.glyph}
+                    </div>
+                    <div>
+                      <div className="text-base font-semibold text-gray-800">{tile.title}</div>
+                      <p className="text-sm text-gray-500 mt-1 leading-relaxed">{tile.description}</p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate(tile.to)}
+                    className="mt-4 inline-flex items-center text-sm font-medium text-emerald-600 hover:text-emerald-700 focus:outline-none"
+                  >
+                    {tile.cta}
+                    <span className="ml-2 text-xs text-emerald-500 transition-transform group-hover:translate-x-1">
+                      &gt;
+                    </span>
+                  </button>
                 </div>
-              </div>
-
-              <div className="mt-6 border-t pt-4 flex items-center justify-between">
-                <div className="text-sm text-gray-500">Totals</div>
-                <div className="text-2xl font-extrabold text-gray-800">29</div>
-              </div>
+              ))}
             </div>
 
-            <div className="mt-6">
-              <p className="text-sm text-gray-600">Want a full view? Click the button to open the app and try the end-to-end workflow.</p>
+            <div className="mt-8 border-t border-gray-100 pt-6">
+              <p className="text-sm text-gray-600">
+                Want everything in one place? Launch the full app to experience the end-to-end workflow.
+              </p>
               <div className="mt-4">
                 <button
                   onClick={() => navigate("/login")}
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-blue-500 text-white font-medium shadow-lg hover:scale-105 transition"
                 >
-                  Login
+                  Launch demo
                 </button>
               </div>
             </div>
@@ -151,3 +193,4 @@ export default function LandingPage() {
     </div>
   );
 }
+

@@ -1,6 +1,8 @@
 // frontend/src/api/api.js
 import axios from "axios";
 
+import { getToken } from "../utils/session";
+
 const api = axios.create({
   baseURL: "http://localhost:5000/api", // include /api
   timeout: 10000,
@@ -8,7 +10,7 @@ const api = axios.create({
 
 // attach JWT automatically
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

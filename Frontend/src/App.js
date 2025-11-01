@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import PropTypes from "prop-types";
 
@@ -16,23 +16,17 @@ import PayrollDashboard from "./pages/PayrollDashboard.jsx";
 import PayrollProfile from "./pages/PayrollProfile.jsx";
 import LeaveDashboard from "./pages/LeaveDashboard.jsx";
 
+import {
+  clearCurrentSession,
+  getCurrentSession,
+  setCurrentSession,
+  subscribeToSessionChanges,
+} from "./utils/session";
+
 // Optional manager leaves page - lazy loaded so missing file will not break compilation
 const ManagerLeaveDashboard = lazy(() =>
   import("./pages/ManagerLeaveDashboard.jsx").catch(() => ({ default: null }))
 );
-
-// safe JSON parse helper
-function safeParse(key) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw || raw === "undefined" || raw === "null") return null;
-    return JSON.parse(raw);
-  } catch (e) {
-    // parsing failed, return null and log
-    console.error(`Failed to parse ${key}`, e);
-    return null;
-  }
-}
 
 /**
  * PrivateRoute
@@ -69,50 +63,37 @@ PrivateRoute.propTypes = {
 };
 
 export default function App() {
-  const [token, setToken] = useState(() => {
-    try {
-      return localStorage.getItem("token") || "";
-    } catch {
-      return "";
-    }
-  });
-  const [user, setUser] = useState(() => safeParse("user"));
+  const initialSessionRef = useRef(getCurrentSession().session);
+  const [token, setToken] = useState(initialSessionRef.current?.token || "");
+  const [user, setUser] = useState(initialSessionRef.current?.user || null);
 
   const handleAuth = (t, u) => {
     setToken(t);
     setUser(u);
-    try {
-      localStorage.setItem("token", t || "");
-      localStorage.setItem("user", JSON.stringify(u || {}));
-    } catch (e) {
-      console.warn("Unable to persist auth to localStorage", e);
-    }
+    initialSessionRef.current = { token: t, user: u };
+    setCurrentSession(t, u);
   };
 
   const handleLogout = () => {
     setToken("");
     setUser(null);
-    try {
-      localStorage.clear();
-    } catch (e) {
-      console.warn("Failed to clear localStorage", e);
-    }
+    initialSessionRef.current = null;
+    clearCurrentSession();
   };
 
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === "token" || e.key === "user") {
-        try {
-          setToken(localStorage.getItem("token") || "");
-          setUser(safeParse("user"));
-        } catch {
-          setToken("");
-          setUser(null);
-        }
+    const unsubscribe = subscribeToSessionChanges((session) => {
+      if (!session || !session.token) {
+        setToken("");
+        setUser(null);
+        initialSessionRef.current = null;
+        return;
       }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+      setToken(session.token);
+      setUser(session.user || null);
+      initialSessionRef.current = { token: session.token, user: session.user || null };
+    });
+    return unsubscribe;
   }, []);
 
   return (

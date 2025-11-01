@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { http } from "../api/http";
 import logo from "../assets/logo-dark.png"; // update path if needed
+import { getUser as getSessionUser } from "../utils/session";
 
 // --- helpers --------------------------------------------------------------
 function getWeekRange(date) {
@@ -82,11 +83,30 @@ const padToMinRows = (rows) => {
   return copy.slice(0, MAX_ROWS);
 };
 
+function toIsoDateString(date) {
+  if (!(date instanceof Date)) return "";
+  const offsetMs = date.getTimezoneOffset() * 60000;
+  const adjusted = new Date(date.getTime() - offsetMs);
+  return adjusted.toISOString().slice(0, 10);
+}
+
+function isoFromValue(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return toIsoDateString(date);
+}
+
 // ---------- Profile helpers -----------------------------------------
-function getProfileFromLocalStorage() {
+function getProfileFromStorage() {
+  const sessionUser = getSessionUser() || {};
   const photo = localStorage.getItem("profilePhoto") || null;
-  const name = localStorage.getItem("name") || localStorage.getItem("userName") || "";
-  const email = localStorage.getItem("email") || "";
+  const name =
+    sessionUser.name ||
+    localStorage.getItem("name") ||
+    localStorage.getItem("userName") ||
+    "";
+  const email = sessionUser.email || localStorage.getItem("email") || "";
   return { photo, name, email };
 }
 function initialsFromName(name) {
@@ -102,7 +122,7 @@ export default function TimesheetDashboard({ onLogout }) {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const { startDate, label } = useMemo(() => getWeekRange(currentDate), [currentDate]);
-  const weekStartStr = useMemo(() => new Date(startDate).toISOString().slice(0, 10), [startDate]);
+  const weekStartStr = useMemo(() => toIsoDateString(new Date(startDate)), [startDate]);
 
   const [rows, setRows] = useState(padToMinRows([]));
   const [status, setStatus] = useState("draft");
@@ -118,7 +138,7 @@ export default function TimesheetDashboard({ onLogout }) {
   const [commentModal, setCommentModal] = useState({ open: false, sheetId: null, rowIndex: null, dayIndex: null, text: "", meta: {} });
 
   // profile info cached on first render
-  const profile = useMemo(() => getProfileFromLocalStorage(), []);
+  const profile = useMemo(() => getProfileFromStorage(), []);
 
   // row helpers
   const isRowEmpty = (r) =>
@@ -244,7 +264,8 @@ export default function TimesheetDashboard({ onLogout }) {
 
   // saved sheets for current week
   const sheetsForWeek = useMemo(() => {
-    return allSheets.filter((s) => s && s.weekStart && s.weekStart.slice(0, 10) === weekStartStr)
+    return allSheets
+      .filter((s) => isoFromValue(s?.weekStart) === weekStartStr)
       .sort((a, b) => new Date(b.updatedAt || b.createdAt || b.weekStart) - new Date(a.updatedAt || a.createdAt || a.weekStart));
   }, [allSheets, weekStartStr]);
 
@@ -287,7 +308,9 @@ export default function TimesheetDashboard({ onLogout }) {
         if (indices.length === 0) continue;
         const selectedRows = indices.map((i) => s.rows[i]).filter((r) => r && !isRowEmpty(r));
         if (selectedRows.length === 0) continue;
-        payloadBundles.push({ sheetId: id, weekStart: s.weekStart, rows: selectedRows });
+        const weekIso = isoFromValue(s.weekStart);
+        if (!weekIso) continue;
+        payloadBundles.push({ sheetId: id, weekStart: weekIso, rows: selectedRows });
       }
 
       if (payloadBundles.length === 0) return alert("Select at least one non-empty row to submit.");
@@ -318,7 +341,9 @@ export default function TimesheetDashboard({ onLogout }) {
     const meaningful = (editingRows || []).filter((r) => !isRowEmpty(r));
     if (meaningful.length === 0) return alert("No meaningful rows to save in edited sheet.");
     try {
-      const payload = { weekStart: editingSaved.weekStart, rows: meaningful };
+      const isoWeek = isoFromValue(editingSaved.weekStart);
+      if (!isoWeek) throw new Error("Invalid week start");
+      const payload = { weekStart: isoWeek, rows: meaningful };
       await http.put(`/timesheets/${editingSaved._id}`, payload);
       await fetchAllSheets();
       closeEditModal();

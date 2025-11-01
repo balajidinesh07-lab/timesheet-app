@@ -3,9 +3,10 @@ import React, { useMemo, useState } from "react";
 import { http } from "../api/http";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo-dark.png";
+import { getUser as getSessionUser } from "../utils/session";
 
 export default function ForceResetPassword({ onLogout }) {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const user = getSessionUser() || {};
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [err, setErr] = useState("");

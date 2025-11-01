@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo-dark.png";
+import { getUser as getSessionUser } from "../utils/session";
 
 const PLACEHOLDER_AVATAR =
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&q=60&auto=format&fit=crop";
@@ -116,9 +117,10 @@ export default function PayrollDashboard() {
     { key: "leave", title: "Leave System", icon: <Calendar size={16} /> },
   ];
 
+  const sessionUser = getSessionUser() || {};
   const profile = {
-    name: localStorage.getItem("name") || "Employee",
-    email: localStorage.getItem("email") || "employee@company.com",
+    name: sessionUser.name || localStorage.getItem("name") || "Employee",
+    email: sessionUser.email || localStorage.getItem("email") || "employee@company.com",
     photo: localStorage.getItem("profilePhoto") || PLACEHOLDER_AVATAR,
   };
 
