@@ -1,9 +1,9 @@
-// src/pages/AuthPage.jsx
+﻿// src/pages/AuthPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { http } from "../api/http";
 import logo from "../assets/logo-dark.png";
-import { Eye, EyeOff } from "lucide-react"; // 👁 import eye icons
+import { Eye, EyeOff } from "lucide-react"; // ðŸ‘ import eye icons
 
 export default function AuthPage({ onAuth }) {
   const [email, setEmail] = useState("");
@@ -45,7 +45,7 @@ export default function AuthPage({ onAuth }) {
     } peer-focus:-top-2 peer-focus:text-xs peer-focus:text-blue-600`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center relative overflow-hidden">
+    <div className="min-h-screen bg-animated-sky flex items-center justify-center relative overflow-hidden">
       {/* Decorative background gradients */}
       <div className="absolute -top-40 -left-32 w-96 h-96 bg-blue-300 rounded-full opacity-30 blur-3xl animate-pulse"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-200 rounded-full opacity-40 blur-3xl animate-pulse"></div>
@@ -118,7 +118,7 @@ export default function AuthPage({ onAuth }) {
           {/* Error Message */}
           {err && (
             <p className="text-red-500 text-sm text-center animate-fade-in">
-              ⚠️ {err}
+              âš ï¸ {err}
             </p>
           )}
 
@@ -152,10 +152,11 @@ export default function AuthPage({ onAuth }) {
             onClick={() => navigate("/")}
             className="text-sm text-gray-500 hover:text-blue-600 transition-colors"
           >
-            ← Back to Landing Page
+            â† Back to Landing Page
           </button>
         </div>
       </div>
     </div>
   );
 }
+

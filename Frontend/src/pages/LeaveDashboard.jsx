@@ -1,4 +1,4 @@
-// src/pages/LeaveDashboard.jsx
+﻿// src/pages/LeaveDashboard.jsx
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, PlusCircle, CheckCircle, XCircle } from "lucide-react";
@@ -232,7 +232,7 @@ export default function LeaveDashboard() {
   };
   return (
     <div
-      className="min-h-screen p-6 md:p-10"
+      className="min-h-screen bg-animated-sky p-6"
       style={{
         background:
           "radial-gradient(circle at 8% 12%, rgba(59,130,246,0.06) 0%, transparent 26%), " +
@@ -488,3 +488,4 @@ export default function LeaveDashboard() {
     </div>
   );
 }
+

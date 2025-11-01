@@ -1,4 +1,4 @@
-// src/pages/TimesheetDashboard.jsx
+﻿// src/pages/TimesheetDashboard.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -214,9 +214,9 @@ export default function TimesheetDashboard({ onLogout }) {
 
   // save/submit (exclude empty rows)
   async function saveTimesheet() {
-    if (!editable) return alert("🔒 Timesheet is locked after manager review.");
+    if (!editable) return alert("ðŸ”’ Timesheet is locked after manager review.");
     const meaningful = (rows || []).filter((r) => !isRowEmpty(r));
-    if (meaningful.length === 0) return alert("Nothing to save — all rows are empty.");
+    if (meaningful.length === 0) return alert("Nothing to save â€” all rows are empty.");
     try {
       const payload = { weekStart: weekStartStr, rows: meaningful.slice(0, MAX_ROWS), submit: false };
       const saved = await http.post("/timesheets", payload);
@@ -225,7 +225,7 @@ export default function TimesheetDashboard({ onLogout }) {
         setStatus(saved.status || status);
       }
       await fetchAllSheets();
-      alert("💾 Timesheet saved (empty rows excluded).");
+      alert("ðŸ’¾ Timesheet saved (empty rows excluded).");
     } catch (err) {
       console.error("Save failed:", err);
       alert("Failed to save timesheet");
@@ -233,7 +233,7 @@ export default function TimesheetDashboard({ onLogout }) {
   }
 
   async function submitTimesheet() {
-    if (!editable) return alert("🔒 Timesheet is locked after manager review.");
+    if (!editable) return alert("ðŸ”’ Timesheet is locked after manager review.");
     const meaningful = (rows || []).filter((r) => !isRowEmpty(r));
     if (meaningful.length === 0) return alert("Please add at least one row with hours before submitting.");
     if (!validateForSubmit(meaningful)) return;
@@ -247,7 +247,7 @@ export default function TimesheetDashboard({ onLogout }) {
         setStatus("submitted");
       }
       await fetchAllSheets();
-      alert("✅ Timesheet submitted. Empty rows were not included.");
+      alert("âœ… Timesheet submitted. Empty rows were not included.");
     } catch (err) {
       console.error("Submit failed:", err);
       alert("Failed to submit timesheet");
@@ -256,9 +256,9 @@ export default function TimesheetDashboard({ onLogout }) {
 
   const validateForSubmit = (rowsToCheck) => {
     const meaningful = rowsToCheck.filter((r) => !isRowEmpty(r));
-    if (meaningful.length === 0) { alert("⚠️ Please enter at least one row with Client, Project, Task, Activity and some hours before submitting."); return false; }
+    if (meaningful.length === 0) { alert("âš ï¸ Please enter at least one row with Client, Project, Task, Activity and some hours before submitting."); return false; }
     const firstInvalidIndex = meaningful.findIndex((r) => !isRowComplete(r));
-    if (firstInvalidIndex !== -1) { alert("⚠️ Please complete all required fields (Client, Project, Task, Activity) and enter hours for each non-empty row before submitting."); return false; }
+    if (firstInvalidIndex !== -1) { alert("âš ï¸ Please complete all required fields (Client, Project, Task, Activity) and enter hours for each non-empty row before submitting."); return false; }
     return true;
   };
 
@@ -441,7 +441,7 @@ export default function TimesheetDashboard({ onLogout }) {
   // UI
   return (
     <div
-      className="relative min-h-screen p-6"
+      className="relative min-h-screen bg-animated-sky"
       style={{
         // corporate modern: subtle layered gradients and soft radial blobs
         background:
@@ -627,11 +627,11 @@ export default function TimesheetDashboard({ onLogout }) {
         <div className="bg-white rounded-2xl border shadow p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-700">Saved / Submitted for this week</h3>
-            <div className="text-sm text-slate-500">{loadingSheetsList ? "Loading…" : `${sheetsForWeek.length} record(s)`}</div>
+            <div className="text-sm text-slate-500">{loadingSheetsList ? "Loadingâ€¦" : `${sheetsForWeek.length} record(s)`}</div>
           </div>
 
           {loadingSheetsList ? (
-            <div className="text-center py-6 text-slate-500">Loading saved items…</div>
+            <div className="text-center py-6 text-slate-500">Loading saved itemsâ€¦</div>
           ) : sheetsForWeek.length === 0 ? (
             <div className="text-center py-6 text-slate-500">No saved or submitted data for this week.</div>
           ) : (
@@ -756,7 +756,7 @@ export default function TimesheetDashboard({ onLogout }) {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-[92%] max-w-6xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Edit Saved Timesheet — {new Date(editingSaved.weekStart).toLocaleDateString("en-GB")}</h3>
+              <h3 className="text-lg font-semibold">Edit Saved Timesheet â€” {new Date(editingSaved.weekStart).toLocaleDateString("en-GB")}</h3>
               <div className="flex gap-2">
                 <button onClick={() => closeEditModal()} className="bg-red-600 text-white px-3 py-1 rounded-lg">Close</button>
               </div>
@@ -864,7 +864,7 @@ export default function TimesheetDashboard({ onLogout }) {
             <div className="bg-indigo-700 rounded-t-xl px-6 py-3 text-white">
               <div className="flex items-center justify-between">
                 <h4 className="text-lg font-semibold">Comments</h4>
-                <button onClick={() => closeCommentModal()} className="text-white/90">✕</button>
+                <button onClick={() => closeCommentModal()} className="text-white/90">âœ•</button>
               </div>
             </div>
 
@@ -872,7 +872,7 @@ export default function TimesheetDashboard({ onLogout }) {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <div className="text-xs text-slate-500">Timesheet for</div>
-                  <div className="font-medium">{commentModal.meta?.task || commentModal.meta?.project || "—"}</div>
+                  <div className="font-medium">{commentModal.meta?.task || commentModal.meta?.project || "â€”"}</div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Date</div>
@@ -947,7 +947,7 @@ export default function TimesheetDashboard({ onLogout }) {
           box-shadow: 0 2px 6px rgba(37,99,235,0.18);
         }
 
-        /* ===== SAVED TABLE: cleaned — no comment icons/dots =====
+        /* ===== SAVED TABLE: cleaned â€” no comment icons/dots =====
            - hours visible and centered
            - no reserved space for comment icons in saved-list
         */
@@ -965,7 +965,7 @@ export default function TimesheetDashboard({ onLogout }) {
 
         tfoot tr td { border-top: 0; text-align: center; }
 
-        /* Tiny animation for floating blobs — gentle movement */
+        /* Tiny animation for floating blobs â€” gentle movement */
         @keyframes floatY {
           0% { transform: translateY(0); }
           50% { transform: translateY(-10px); }
@@ -1013,3 +1013,4 @@ function StatusBadge({ s }) {
   const label = (s || "draft").charAt(0).toUpperCase() + (s || "draft").slice(1);
   return <span className={`px-2 py-1 rounded-full text-xs font-medium ${map[s] || "status-draft"}`}>{label}</span>;
 }
+

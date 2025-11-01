@@ -72,6 +72,14 @@ export default function App() {
     setUser(u);
     initialSessionRef.current = { token: t, user: u };
     setCurrentSession(t, u);
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("name", u?.name || "");
+        window.localStorage.setItem("email", u?.email || "");
+      }
+    } catch (err) {
+      console.warn("Unable to persist profile details to localStorage", err);
+    }
   };
 
   const handleLogout = () => {
@@ -79,6 +87,14 @@ export default function App() {
     setUser(null);
     initialSessionRef.current = null;
     clearCurrentSession();
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem("name");
+        window.localStorage.removeItem("email");
+      }
+    } catch (err) {
+      console.warn("Failed to clear profile details from localStorage", err);
+    }
   };
 
   useEffect(() => {

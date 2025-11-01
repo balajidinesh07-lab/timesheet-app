@@ -1,4 +1,4 @@
-// src/pages/AdminDashboard.jsx
+﻿// src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { http } from "../api/http";
 import logo from "../assets/logo-dark.png";
@@ -52,7 +52,7 @@ export default function AdminDashboard({ onLogout }) {
         ...form,
         mustResetPassword: true, // ensure force reset
       });
-      alert(`✅ User created! Temp password has been sent to ${form.email}`);
+      alert(`âœ… User created! Temp password has been sent to ${form.email}`);
       setForm({ name: "", email: "", role: "employee" });
       fetchUsers();
     } catch (err) {
@@ -103,9 +103,9 @@ export default function AdminDashboard({ onLogout }) {
       const assignedName =
         managers.find((m) => m._id === managerId)?.name || "Unassigned";
       if (managerId) {
-        alert(`✅ Assigned to ${assignedName}`);
+        alert(`âœ… Assigned to ${assignedName}`);
       } else {
-        alert("✅ Manager cleared");
+        alert("âœ… Manager cleared");
       }
 
       console.log("Assign response:", updated);
@@ -144,7 +144,7 @@ export default function AdminDashboard({ onLogout }) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-animated-sky">
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-sm border-b sticky top-0 z-20">
         <div className="flex items-center gap-4">
@@ -276,7 +276,7 @@ export default function AdminDashboard({ onLogout }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="p-6 text-center text-slate-400 animate-pulse">Loading users…</td>
+                    <td colSpan="5" className="p-6 text-center text-slate-400 animate-pulse">Loading usersâ€¦</td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
@@ -308,11 +308,11 @@ export default function AdminDashboard({ onLogout }) {
                               ))}
                             </select>
                             {assignBusy === u._id && (
-                              <span className="text-xs text-slate-500">Updating…</span>
+                              <span className="text-xs text-slate-500">Updatingâ€¦</span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400">â€”</span>
                         )}
                       </td>
                       <td className="p-3 text-right">
@@ -409,7 +409,7 @@ function KpiCard({ title, value, subtitle, color = "blue", loading }) {
         <div>
           <div className="text-sm text-slate-500">{title}</div>
           <div className={`mt-2 text-3xl font-bold ${text}`}>
-            {loading ? <span className="animate-pulse text-slate-400">—</span> : value}
+            {loading ? <span className="animate-pulse text-slate-400">â€”</span> : value}
           </div>
           {subtitle && <div className="text-xs text-slate-400 mt-1">{subtitle}</div>}
         </div>
@@ -420,3 +420,4 @@ function KpiCard({ title, value, subtitle, color = "blue", loading }) {
     </div>
   );
 }
+

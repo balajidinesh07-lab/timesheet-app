@@ -1,4 +1,4 @@
-// src/pages/ResetPassword.jsx
+﻿// src/pages/ResetPassword.jsx
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { http } from "../api/http";
@@ -29,18 +29,18 @@ export default function ResetPassword() {
       const res = await http.post(`/auth/reset-password/${token}`, {
         newPassword: password,
       });
-      setMsg(res.message || "✅ Password updated successfully! Redirecting...");
+      setMsg(res.message || "âœ… Password updated successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
     } catch (e2) {
       console.error(e2);
-      setErr(e2.message || "❌ Failed to reset password");
+      setErr(e2.message || "âŒ Failed to reset password");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-b from-white via-slate-50 to-slate-100 p-6">
+    <div className="relative min-h-screen bg-animated-sky">
       {/* Decorative animated shapes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-16 -top-20 w-80 h-80 bg-gradient-to-tr from-indigo-100 to-indigo-50 rounded-full opacity-40 blur-3xl animate-float" />
@@ -70,16 +70,16 @@ export default function ResetPassword() {
             <div>
               <h2 className="text-lg font-semibold text-slate-700 mb-2">Password Guidelines</h2>
               <p className="text-sm text-slate-500 mb-4">
-                Choose a strong password that you haven’t used before on this site.
+                Choose a strong password that you havenâ€™t used before on this site.
               </p>
               <ul className="text-sm text-slate-600 space-y-2">
-                <li>✅ Minimum 6 characters</li>
-                <li>✅ Use upper and lowercase letters</li>
-                <li>✅ Include at least one number or symbol</li>
+                <li>âœ… Minimum 6 characters</li>
+                <li>âœ… Use upper and lowercase letters</li>
+                <li>âœ… Include at least one number or symbol</li>
               </ul>
 
               <div className="mt-6 text-xs text-slate-400">
-                After resetting, you’ll be redirected to login.
+                After resetting, youâ€™ll be redirected to login.
               </div>
             </div>
 
@@ -143,7 +143,7 @@ export default function ResetPassword() {
                 disabled={loading}
                 className="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 font-medium transition shadow"
               >
-                {loading ? "Updating…" : "Update Password"}
+                {loading ? "Updatingâ€¦" : "Update Password"}
               </button>
 
               <button
@@ -181,4 +181,5 @@ export default function ResetPassword() {
     </div>
   );
 }
+
 

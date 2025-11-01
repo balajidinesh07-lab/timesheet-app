@@ -1,4 +1,4 @@
-// src/pages/PayrollProfile.jsx
+﻿// src/pages/PayrollProfile.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -32,7 +32,7 @@ function formatCurrency(v) {
   try {
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
   } catch {
-    return `₹${v}`;
+    return `â‚¹${v}`;
   }
 }
 
@@ -150,7 +150,7 @@ export default function PayrollProfile() {
 
   return (
     <div
-      className="min-h-screen p-6 md:p-10"
+      className="min-h-screen bg-animated-sky"
       style={{
         background:
           "radial-gradient(circle at 8% 12%, rgba(99,102,241,0.04) 0%, transparent 28%), " +
@@ -160,7 +160,7 @@ export default function PayrollProfile() {
       }}
     >
       <div className="max-w-7xl mx-auto">
-        {/* Taller Hero — increased height and richer gradients */}
+        {/* Taller Hero â€” increased height and richer gradients */}
         <div className="relative overflow-hidden rounded-2xl mb-8" style={{ minHeight: 180 }}>
           <div
             className="absolute inset-0 animate-hero"
@@ -187,7 +187,7 @@ export default function PayrollProfile() {
 
             <div className="flex-1 md:pl-6">
               <p className="text-sm text-white/90 max-w-3xl">
-                Read-only employee profile — update your photo here. For changes to personal or payroll information contact HR.
+                Read-only employee profile â€” update your photo here. For changes to personal or payroll information contact HR.
                 The hero is taller and richer to match the corporate-modern visual language.
               </p>
             </div>
@@ -261,7 +261,7 @@ export default function PayrollProfile() {
                     <div>
                       <div className="text-xs text-slate-500">Name</div>
                       <div className="text-2xl md:text-3xl font-extrabold text-slate-900">{draft.name}</div>
-                      <div className="text-sm text-slate-500 mt-1">{draft.designation} • Joined {new Date(draft.doj).toLocaleDateString()}</div>
+                      <div className="text-sm text-slate-500 mt-1">{draft.designation} â€¢ Joined {new Date(draft.doj).toLocaleDateString()}</div>
                     </div>
 
                     <div className="text-right">
@@ -314,12 +314,12 @@ export default function PayrollProfile() {
                   <input value={draft.designation} disabled className="w-full mt-1 p-3 rounded-lg border border-slate-100 bg-white/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500">Annual CTC (₹)</label>
+                  <label className="text-xs text-slate-500">Annual CTC (â‚¹)</label>
                   <input type="number" value={draft.ctc} disabled className="w-full mt-1 p-3 rounded-lg border border-slate-100 bg-white/60" />
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-500">Earned Year-to-date (₹)</label>
+                  <label className="text-xs text-slate-500">Earned Year-to-date (â‚¹)</label>
                   <input type="number" value={draft.earnedYTD} disabled className="w-full mt-1 p-3 rounded-lg border border-slate-100 bg-white/60" />
                 </div>
 
@@ -390,7 +390,7 @@ export default function PayrollProfile() {
           </aside>
         </div>
 
-        <div className="text-center text-xs text-slate-400 mt-6">Payroll profile • Confidential • For internal use only</div>
+        <div className="text-center text-xs text-slate-400 mt-6">Payroll profile â€¢ Confidential â€¢ For internal use only</div>
       </div>
 
       <style>{`
@@ -416,3 +416,4 @@ export default function PayrollProfile() {
     </div>
   );
 }
+

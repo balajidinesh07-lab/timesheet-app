@@ -1,4 +1,4 @@
-// src/pages/ManagerLeaveDashboard.jsx
+﻿// src/pages/ManagerLeaveDashboard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle, XCircle, Search, MoreHorizontal, ArrowLeft } from "lucide-react";
@@ -151,7 +151,7 @@ export default function ManagerLeaveDashboard() {
 
   return (
     <div
-      className="min-h-screen p-6 md:p-10"
+      className="min-h-screen bg-animated-sky"
       style={{
         background:
           "linear-gradient(180deg, #ffffff 0%, #f7fbff 40%, #f5fffa 100%)",
@@ -371,7 +371,7 @@ export default function ManagerLeaveDashboard() {
               <div>
                 <div className="text-xs text-slate-500">Request details</div>
                 <h3 className="text-xl font-semibold text-slate-800">
-                  {selected.employee || "-"} • {selected.type || "-"}
+                  {selected.employee || "-"} â€¢ {selected.type || "-"}
                 </h3>
                 <div className="text-xs text-slate-400 mt-1">
                   Requested:{" "}
@@ -466,8 +466,8 @@ export default function ManagerLeaveDashboard() {
 
             <div className="mt-3 text-sm text-slate-600">
               <div>
-                <strong>{actionModal.request.employee || "-"}</strong> •{" "}
-                {actionModal.request.type || "-"} •{" "}
+                <strong>{actionModal.request.employee || "-"}</strong> â€¢{" "}
+                {actionModal.request.type || "-"} â€¢{" "}
                 {safeDate(actionModal.request.from)} -{" "}
                 {safeDate(actionModal.request.to)} ({actionModal.request.days || "-"} day(s))
               </div>
@@ -522,4 +522,5 @@ export default function ManagerLeaveDashboard() {
     </div>
   );
 }
+
 

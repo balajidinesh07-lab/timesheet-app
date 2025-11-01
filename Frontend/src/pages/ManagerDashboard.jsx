@@ -1,4 +1,4 @@
-// src/pages/ManagerDashboard.jsx
+﻿// src/pages/ManagerDashboard.jsx
 import React, { useState, useEffect, useMemo, lazy, Suspense, useRef } from "react";
 import ReactDOM from "react-dom";
 import { http } from "../api/http";
@@ -346,7 +346,7 @@ export default function ManagerDashboard({ onLogout }) {
     (Array.isArray(timesheets) ? timesheets : []).forEach((ts) => {
       if (Array.isArray(ts.rows)) {
         ts.rows.forEach((r) => {
-          if (r.project) projectSet.add(String(r.project).trim() || "—");
+          if (r.project) projectSet.add(String(r.project).trim() || "â€”");
           const rowHasHours = Array.isArray(r.hours) && r.hours.some((h) => Number(h) > 0);
           if (!rowHasHours) {
             if (r.task || r.activity || r.client) openTasksCount++;
@@ -431,7 +431,7 @@ export default function ManagerDashboard({ onLogout }) {
 
   // ---------- Render (layout with sidebar) ----------
   return (
-    <div className="flex min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100">
+    <div className="flex min-h-screen bg-animated-sky">
       {/* Sidebar */}
       <aside
         ref={sidebarRef}
@@ -535,10 +535,10 @@ export default function ManagerDashboard({ onLogout }) {
             <>
               {/* Stats row */}
               <section className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <StatCard title="Total Projects" value={metrics.totalProjects} color={STAT_COLORS.projects} icon="📁" />
-                <StatCard title="Open Tasks" value={metrics.openTasks} color={STAT_COLORS.open} icon="🟢" />
-                <StatCard title="Team Members" value={metrics.teamMembers} color={STAT_COLORS.team} icon="👥" />
-                <StatCard title="Overdue Tasks" value={metrics.overdueTasks} color={STAT_COLORS.overdue} icon="⚠️" />
+                <StatCard title="Total Projects" value={metrics.totalProjects} color={STAT_COLORS.projects} icon="ðŸ“" />
+                <StatCard title="Open Tasks" value={metrics.openTasks} color={STAT_COLORS.open} icon="ðŸŸ¢" />
+                <StatCard title="Team Members" value={metrics.teamMembers} color={STAT_COLORS.team} icon="ðŸ‘¥" />
+                <StatCard title="Overdue Tasks" value={metrics.overdueTasks} color={STAT_COLORS.overdue} icon="âš ï¸" />
               </section>
 
               {/* Charts */}
@@ -630,8 +630,8 @@ export default function ManagerDashboard({ onLogout }) {
                 <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-40">
                   <div className="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-5xl max-h-[80vh] overflow-y-auto relative">
                     <div className="flex justify-between items-center mb-4 border-b pb-3">
-                      <h3 className="text-lg font-semibold text-slate-700">Timesheets — {selectedUser.name}</h3>
-                      <button onClick={() => setSelectedUser(null)} className="text-slate-500 hover:text-slate-700">✕</button>
+                      <h3 className="text-lg font-semibold text-slate-700">Timesheets â€” {selectedUser.name}</h3>
+                      <button onClick={() => setSelectedUser(null)} className="text-slate-500 hover:text-slate-700">âœ•</button>
                     </div>
 
                     {loadingSheets ? (
@@ -686,8 +686,8 @@ export default function ManagerDashboard({ onLogout }) {
                 <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
                   <div className="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-6xl max-h-[85vh] overflow-y-auto relative">
                     <div className="flex justify-between items-center mb-4 border-b pb-3">
-                      <h3 className="text-lg font-semibold text-slate-700">Timesheet Details — {new Date(viewingSheet.weekStart).toLocaleDateString("en-GB")}</h3>
-                      <button onClick={() => setViewingSheet(null)} className="text-slate-500 hover:text-slate-700">✕</button>
+                      <h3 className="text-lg font-semibold text-slate-700">Timesheet Details â€” {new Date(viewingSheet.weekStart).toLocaleDateString("en-GB")}</h3>
+                      <button onClick={() => setViewingSheet(null)} className="text-slate-500 hover:text-slate-700">âœ•</button>
                     </div>
 
                     {Array.isArray(viewingSheet.rows) && viewingSheet.rows.length > 0 ? (
@@ -765,7 +765,7 @@ export default function ManagerDashboard({ onLogout }) {
                       <div className="bg-indigo-700 rounded-t-xl px-6 py-3 text-white">
                         <div className="flex items-center justify-between">
                           <h4 className="text-lg font-semibold">Comment</h4>
-                          <button onClick={() => closeCommentModal()} className="text-white/90">✕</button>
+                          <button onClick={() => closeCommentModal()} className="text-white/90">âœ•</button>
                         </div>
                       </div>
 
@@ -773,11 +773,11 @@ export default function ManagerDashboard({ onLogout }) {
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
                             <div className="text-xs text-slate-500">Context</div>
-                            <div className="font-medium">{commentModal.meta.project || commentModal.meta.client || commentModal.meta.task || "—"}</div>
+                            <div className="font-medium">{commentModal.meta.project || commentModal.meta.client || commentModal.meta.task || "â€”"}</div>
                           </div>
                           <div>
                             <div className="text-xs text-slate-500">Date</div>
-                            <div className="font-medium">{viewingSheet ? new Date(viewingSheet.weekStart).toLocaleDateString("en-GB") : "—"}</div>
+                            <div className="font-medium">{viewingSheet ? new Date(viewingSheet.weekStart).toLocaleDateString("en-GB") : "â€”"}</div>
                           </div>
                         </div>
 
@@ -1098,7 +1098,7 @@ export default function ManagerDashboard({ onLogout }) {
           )}
 
           {activeTab === "leaves" && (
-            <Suspense fallback={<div className="p-6 bg-white rounded-2xl shadow text-slate-600">Loading leaves…</div>}>
+            <Suspense fallback={<div className="p-6 bg-white rounded-2xl shadow text-slate-600">Loading leavesâ€¦</div>}>
               <ManagerLeaveDashboard />
             </Suspense>
           )}
@@ -1146,7 +1146,7 @@ function StatCard({ title, value, color, icon }) {
           <div className="mt-2 text-3xl font-extrabold text-slate-800">{value}</div>
         </div>
         <div className="p-3 rounded-xl text-white text-lg" style={{ background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
-          <span style={{ fontSize: 20 }}>{icon || "•"}</span>
+          <span style={{ fontSize: 20 }}>{icon || "â€¢"}</span>
         </div>
       </div>
     </div>
@@ -1176,3 +1176,4 @@ function SidebarLink({ label, icon, active, onClick }) {
     </button>
   );
 }
+

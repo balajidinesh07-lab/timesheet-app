@@ -3,25 +3,61 @@
 @tailwind utilities;
 
 /* (Optional) Your custom global styles below */
-body {
-  @apply bg-gray-50;
+.bg-animated-sky {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.14), transparent 55%),
+              radial-gradient(circle at 80% 30%, rgba(16, 185, 129, 0.12), transparent 55%),
+              radial-gradient(circle at 50% 80%, rgba(125, 211, 252, 0.12), transparent 60%),
+              #f8fafc;
 }
-/* index.css (append) */
 
-/* Cursor blob */
-#cursor-blob {
-  width: 60px;
-  height: 60px;
+.bg-animated-sky::before,
+.bg-animated-sky::after {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
   border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, rgba(99,102,241,0.35), rgba(99,102,241,0.12));
-  transform: translate(-50%, -50%) scale(0.8);
-  transition: transform 200ms ease, opacity 250ms ease, background 250ms ease;
-  mix-blend-mode: screen;
-  pointer-events: none;
-  z-index: 9999;
+  filter: blur(120px);
+  opacity: 0.45;
+  animation: skyFloat var(--sky-duration, 28s) ease-in-out infinite;
 }
 
-/* hide if user doesn't want custom cursor on mobile */
-@media (hover: none) {
-  #cursor-blob { display: none; }
+.bg-animated-sky::before {
+  top: -160px;
+  left: -140px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45), transparent 70%);
+}
+
+.bg-animated-sky::after {
+  bottom: -180px;
+  right: -120px;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.4), transparent 70%);
+  animation-delay: -12s;
+}
+
+.bg-animated-sky > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes skyFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(40px, -20px, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(60px, 30px, 0) scale(1.03);
+    opacity: 0.35;
+  }
+  75% {
+    transform: translate3d(-30px, 20px, 0) scale(1.06);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }

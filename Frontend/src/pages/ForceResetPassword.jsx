@@ -1,4 +1,4 @@
-// src/pages/ForceResetPassword.jsx
+﻿// src/pages/ForceResetPassword.jsx
 import React, { useMemo, useState } from "react";
 import { http } from "../api/http";
 import { useNavigate } from "react-router-dom";
@@ -37,7 +37,7 @@ export default function ForceResetPassword({ onLogout }) {
       setLoading(true);
       await http.post("/auth/reset-password", { newPassword: newPw });
       // show small success microcopy then log out
-      alert("✅ Password updated! You'll be redirected to login.");
+      alert("âœ… Password updated! You'll be redirected to login.");
       onLogout();
       navigate("/login");
     } catch (e) {
@@ -54,7 +54,7 @@ export default function ForceResetPassword({ onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-animated-sky flex items-center justify-center p-6">
       {/* decorative floating shapes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-16 -top-24 w-72 h-72 bg-gradient-to-tr from-indigo-100 to-indigo-50 rounded-full opacity-40 blur-3xl animate-animateFloat" />
@@ -81,9 +81,9 @@ export default function ForceResetPassword({ onLogout }) {
               </p>
 
               <ul className="text-sm space-y-2 text-slate-600">
-                <li>✅ At least 6 characters</li>
-                <li>✅ Include numbers (recommended)</li>
-                <li>✅ Avoid using easily guessable info (like your name)</li>
+                <li>âœ… At least 6 characters</li>
+                <li>âœ… Include numbers (recommended)</li>
+                <li>âœ… Avoid using easily guessable info (like your name)</li>
               </ul>
 
               <div className="mt-6">
@@ -154,7 +154,7 @@ export default function ForceResetPassword({ onLogout }) {
                   disabled={loading}
                   className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition shadow"
                 >
-                  {loading ? "Updating…" : "Update password"}
+                  {loading ? "Updatingâ€¦" : "Update password"}
                 </button>
 
                 <button
@@ -191,4 +191,5 @@ export default function ForceResetPassword({ onLogout }) {
     </div>
   );
 }
+
 

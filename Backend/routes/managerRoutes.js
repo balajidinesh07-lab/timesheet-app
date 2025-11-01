@@ -3,12 +3,32 @@ const express = require("express");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const Timesheet = require("../models/Timesheet");
+const ManagerProfile = require("../models/ManagerProfile");
 const { protect, requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 
 // Require manager auth for all routes here
 router.use(protect, requireRole("manager"));
+
+const DEFAULT_PROFILE = {
+  name: "",
+  title: "People Operations Manager",
+  email: "",
+  phone: "",
+  teamName: "",
+  location: "",
+  timezone: "Asia/Kolkata",
+  workingHoursStart: "09:00",
+  workingHoursEnd: "18:00",
+};
+
+const DEFAULT_SETTINGS = {
+  emailNotifications: true,
+  slackNotifications: false,
+  weeklyDigest: true,
+  autoApproveShortLeaves: false,
+};
 
 /**
  * Normalize manager id (returns mongoose ObjectId or null)
@@ -35,6 +55,148 @@ function asObjectId(val) {
     return null;
   }
 }
+
+const PROFILE_STRING_FIELDS = [
+  "name",
+  "title",
+  "email",
+  "phone",
+  "teamName",
+  "location",
+  "timezone",
+  "workingHoursStart",
+  "workingHoursEnd",
+];
+
+function sanitiseProfileInput(payload = {}) {
+  const copy = { ...(payload || {}) };
+  delete copy._id;
+  delete copy.id;
+  delete copy.manager;
+  delete copy.createdAt;
+  delete copy.updatedAt;
+  PROFILE_STRING_FIELDS.forEach((field) => {
+    if (typeof copy[field] === "string") {
+      const trimmed = copy[field].trim();
+      copy[field] = field === "email" ? trimmed.toLowerCase() : trimmed;
+    } else if (copy[field] == null) {
+      delete copy[field];
+    }
+  });
+  return copy;
+}
+
+router.get("/profile", async (req, res) => {
+  try {
+    const managerId = getManagerId(req);
+    if (!managerId) {
+      return res.status(401).json({ error: "Unauthorized - manager id missing" });
+    }
+
+    const [userDoc, storedProfile] = await Promise.all([
+      User.findById(managerId).select("name email").lean(),
+      ManagerProfile.findOne({ manager: managerId }).lean(),
+    ]);
+
+    if (!userDoc) {
+      return res.status(404).json({ error: "Manager not found" });
+    }
+
+    const profile = {
+      ...DEFAULT_PROFILE,
+      ...(storedProfile ? sanitiseProfileInput(storedProfile) : {}),
+      name: storedProfile?.name || userDoc.name || DEFAULT_PROFILE.name,
+      email: storedProfile?.email || userDoc.email || DEFAULT_PROFILE.email,
+    };
+
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...(storedProfile?.settings || {}),
+    };
+
+    return res.json({
+      profile,
+      settings,
+      updatedAt: storedProfile?.updatedAt || userDoc?.updatedAt || new Date(),
+    });
+  } catch (err) {
+    console.error("manager/profile GET error:", err);
+    return res.status(500).json({ error: "Failed to load profile" });
+  }
+});
+
+router.put("/profile", async (req, res) => {
+  try {
+    const managerId = getManagerId(req);
+    if (!managerId) {
+      return res.status(401).json({ error: "Unauthorized - manager id missing" });
+    }
+
+    const payload = sanitiseProfileInput(req.body);
+    const incomingSettings =
+      payload.settings && typeof payload.settings === "object" ? payload.settings : {};
+    delete payload.settings;
+
+    const [existingProfile, userDoc] = await Promise.all([
+      ManagerProfile.findOne({ manager: managerId }),
+      User.findById(managerId).select("name email"),
+    ]);
+
+    const existingData = existingProfile ? existingProfile.toObject() : {};
+    delete existingData._id;
+    delete existingData.manager;
+    delete existingData.createdAt;
+    delete existingData.updatedAt;
+
+    const nextProfile = {
+      ...DEFAULT_PROFILE,
+      ...existingData,
+      ...payload,
+    };
+
+    const nextSettings = {
+      ...DEFAULT_SETTINGS,
+      ...(existingProfile?.settings ? existingProfile.settings.toObject?.() || existingProfile.settings : {}),
+      ...incomingSettings,
+    };
+
+    nextProfile.name = nextProfile.name || userDoc?.name || DEFAULT_PROFILE.name;
+    nextProfile.email = (nextProfile.email || userDoc?.email || DEFAULT_PROFILE.email || "").trim().toLowerCase();
+
+    const updatedProfile = await ManagerProfile.findOneAndUpdate(
+      { manager: managerId },
+      {
+        manager: managerId,
+        ...nextProfile,
+        settings: nextSettings,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    const userUpdates = {};
+    if (payload.name && payload.name !== userDoc?.name) userUpdates.name = payload.name;
+    if (payload.email && payload.email !== userDoc?.email) {
+      userUpdates.email = payload.email.trim().toLowerCase();
+    }
+    if (Object.keys(userUpdates).length > 0) {
+      await User.findByIdAndUpdate(managerId, userUpdates, { new: true });
+    }
+
+    return res.json({
+      profile: {
+        ...DEFAULT_PROFILE,
+        ...sanitiseProfileInput(updatedProfile),
+      },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...(updatedProfile?.settings || {}),
+      },
+    });
+  } catch (err) {
+    console.error("manager/profile PUT error:", err);
+    return res.status(500).json({ error: "Failed to update profile" });
+  }
+});
 
 /**
  * GET /api/manager/team

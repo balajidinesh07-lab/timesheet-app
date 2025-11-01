@@ -1,4 +1,4 @@
-// src/pages/PayrollDashboard.jsx
+﻿// src/pages/PayrollDashboard.jsx
 import React, { useMemo, useState } from "react";
 import {
   Bell,
@@ -29,7 +29,7 @@ function PayrollHeader() {
             Payroll Center
           </h1>
           <p className="opacity-90 max-w-lg text-sm">
-            Manage your payslips, tax forms, and leave — all in one secure, modern dashboard.
+            Manage your payslips, tax forms, and leave â€” all in one secure, modern dashboard.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <button className="bg-white/15 hover:bg-white/25 backdrop-blur-sm text-sm px-4 py-2 rounded-lg border border-white/30 transition">
@@ -102,9 +102,9 @@ export default function PayrollDashboard() {
 
   const payslips = useMemo(
     () => [
-      { id: "p-2025-09", month: "Sep 2025", gross: "₹82,500", status: "Ready" },
-      { id: "p-2025-08", month: "Aug 2025", gross: "₹79,200", status: "Ready" },
-      { id: "p-2025-07", month: "Jul 2025", gross: "₹81,100", status: "Ready" },
+      { id: "p-2025-09", month: "Sep 2025", gross: "â‚¹82,500", status: "Ready" },
+      { id: "p-2025-08", month: "Aug 2025", gross: "â‚¹79,200", status: "Ready" },
+      { id: "p-2025-07", month: "Jul 2025", gross: "â‚¹81,100", status: "Ready" },
     ],
     []
   );
@@ -140,7 +140,7 @@ export default function PayrollDashboard() {
 
   return (
     <div
-      className="min-h-screen p-6 md:p-10"
+      className="min-h-screen bg-animated-sky"
       style={{
         background:
           "linear-gradient(180deg, #f9fafb 0%, #f1f5f9 40%, #f8fafc 100%)",
@@ -221,7 +221,7 @@ export default function PayrollDashboard() {
               color="amber"
               title="Tax regime"
               value="Old Regime"
-              subtitle="FY 2025–26"
+              subtitle="FY 2025â€“26"
             />
             <SummaryCard
               icon={<HelpCircle size={18} />}
@@ -242,13 +242,13 @@ export default function PayrollDashboard() {
               <div>
                 <div className="text-xs text-slate-400">CTC</div>
                 <div className="text-lg font-semibold text-slate-800">
-                  ₹10,00,000
+                  â‚¹10,00,000
                 </div>
               </div>
               <div>
                 <div className="text-xs text-slate-400">Gross (YTD)</div>
                 <div className="text-lg font-semibold text-slate-800">
-                  ₹6,24,100
+                  â‚¹6,24,100
                 </div>
               </div>
               <div className="ml-auto">
@@ -335,7 +335,7 @@ export default function PayrollDashboard() {
         </div>
 
         <footer className="mt-10 text-center text-xs text-slate-400">
-          Payroll system • Confidential • Internal use only
+          Payroll system â€¢ Confidential â€¢ Internal use only
         </footer>
       </main>
 
@@ -379,3 +379,4 @@ function SummaryCard({ icon, color, title, value, subtitle }) {
     </div>
   );
 }
+

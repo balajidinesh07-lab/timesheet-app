@@ -1,4 +1,4 @@
-// src/pages/ForgotPassword.jsx
+﻿// src/pages/ForgotPassword.jsx
 import React, { useState } from "react";
 import { http } from "../api/http";
 import logo from "../assets/logo-dark.png";
@@ -19,15 +19,15 @@ export default function ForgotPassword() {
     try {
       setLoading(true);
       const res = await http.post("/auth/forgot-password", { email });
-      // backend responds { message, resetLink } in dev — show friendly message
-      setMsg(res.message || "✅ If that email exists, a reset link has been sent.");
+      // backend responds { message, resetLink } in dev â€” show friendly message
+      setMsg(res.message || "âœ… If that email exists, a reset link has been sent.");
       setEmail("");
     } catch (e2) {
       console.error("Forgot password error:", e2);
       const m =
         (e2 && e2.response && e2.response.data && e2.response.data.error) ||
         e2.message ||
-        "❌ Failed to send reset link";
+        "âŒ Failed to send reset link";
       setErr(m);
     } finally {
       setLoading(false);
@@ -35,7 +35,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-animated-sky flex items-center justify-center p-6">
       {/* Background decor */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-20 -top-28 w-72 h-72 bg-gradient-to-tr from-indigo-100 to-indigo-50 rounded-full opacity-30 blur-3xl animate-float" />
@@ -59,14 +59,14 @@ export default function ForgotPassword() {
             <div className="flex flex-col gap-4">
               <h2 className="text-lg font-semibold text-slate-700">Reset via email</h2>
               <p className="text-sm text-slate-500">
-                For security we’ll send a time-limited link to your inbox. If the email exists in our system you will receive the link.
+                For security weâ€™ll send a time-limited link to your inbox. If the email exists in our system you will receive the link.
                 Check spam/junk if you don't see it.
               </p>
 
               <ul className="text-sm text-slate-600 space-y-2">
-                <li>🔐 Secure token link (1 hour expiry)</li>
-                <li>✅ Works for Admins, Managers & Employees</li>
-                <li>📩 Delivered by email — no password exposure</li>
+                <li>ðŸ” Secure token link (1 hour expiry)</li>
+                <li>âœ… Works for Admins, Managers & Employees</li>
+                <li>ðŸ“© Delivered by email â€” no password exposure</li>
               </ul>
 
               <div className="mt-4">
@@ -110,7 +110,7 @@ export default function ForgotPassword() {
                   disabled={loading}
                   className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition shadow"
                 >
-                  {loading ? "Sending…" : "Send Reset Link"}
+                  {loading ? "Sendingâ€¦" : "Send Reset Link"}
                 </button>
 
                 <button
@@ -151,3 +151,4 @@ export default function ForgotPassword() {
     </div>
   );
 }
+
