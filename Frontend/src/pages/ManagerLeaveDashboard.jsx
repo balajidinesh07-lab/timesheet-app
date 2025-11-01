@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle, XCircle, Search, MoreHorizontal, ArrowLeft } from "lucide-react";
-import logo from "../assets/logo-dark.png";
 import { http } from "../api/http";
 
 function safeDate(value) {
@@ -161,7 +160,6 @@ export default function ManagerLeaveDashboard() {
     >
       <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <img src={logo} alt="logo" className="h-12 md:h-14 object-contain" />
           <div>
             <div className="text-xs text-slate-500">People Ops</div>
             <div className="text-xl md:text-2xl font-bold text-slate-800">

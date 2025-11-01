@@ -38,6 +38,32 @@ const STAT_COLORS = {
 };
 const CHART_COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444"];
 const DAYS_IN_WEEK = 7;
+const STORAGE_PROFILE_KEY = "managerProfile";
+const STORAGE_SETTINGS_KEY = "managerSettings";
+const DEFAULT_MANAGER_PROFILE = {
+  name: "",
+  title: "People Operations Manager",
+  email: "",
+  phone: "",
+  teamName: "",
+  location: "",
+  timezone: "Asia/Kolkata",
+  workingHoursStart: "09:00",
+  workingHoursEnd: "18:00",
+};
+const DEFAULT_MANAGER_SETTINGS = {
+  emailNotifications: true,
+  slackNotifications: false,
+  weeklyDigest: true,
+  autoApproveShortLeaves: false,
+};
+const MANAGER_TIMEZONES = [
+  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST)" },
+  { value: "Asia/Dubai", label: "Asia/Dubai (GST)" },
+  { value: "Europe/London", label: "Europe/London (BST)" },
+  { value: "America/New_York", label: "America/New_York (ET)" },
+  { value: "Australia/Sydney", label: "Australia/Sydney (AEST)" },
+];
 
 export default function ManagerDashboard({ onLogout }) {
   // data state
@@ -48,9 +74,21 @@ export default function ManagerDashboard({ onLogout }) {
   const [loadingTeam, setLoadingTeam] = useState(false);
   const [loadingSheets, setLoadingSheets] = useState(false);
   const [actionBusyId, setActionBusyId] = useState(null);
+  // manager profile state
+  const [profile, setProfile] = useState(() => ({ ...DEFAULT_MANAGER_PROFILE }));
+  const [profileDraft, setProfileDraft] = useState(() => ({ ...DEFAULT_MANAGER_PROFILE }));
+  const [profileSettings, setProfileSettings] = useState(() => ({ ...DEFAULT_MANAGER_SETTINGS }));
+  const [profileSettingsDraft, setProfileSettingsDraft] = useState(() => ({
+    ...DEFAULT_MANAGER_SETTINGS,
+  }));
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState(null);
 
   // sidebar + navigation state
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
   const [activeTab, setActiveTab] = useState("dashboard"); // "dashboard" | "profile" | "leaves"
 
   // comment modal state
@@ -68,6 +106,7 @@ export default function ManagerDashboard({ onLogout }) {
   useEffect(() => {
     fetchEmployees();
     fetchTeamTimesheets();
+    loadManagerProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -82,6 +121,12 @@ export default function ManagerDashboard({ onLogout }) {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!profileMessage) return;
+    const timeout = setTimeout(() => setProfileMessage(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [profileMessage]);
 
   // Defensive: normalise API result to an array of employees
   const normalizeEmployeesResponse = (resp) => {
@@ -179,6 +224,117 @@ export default function ManagerDashboard({ onLogout }) {
       setActionBusyId(null);
     }
   }
+
+  function readFromStorage(key, fallback) {
+    if (typeof window === "undefined") return { ...fallback };
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return { ...fallback };
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        return { ...fallback, ...parsed };
+      }
+      return { ...fallback };
+    } catch (err) {
+      console.warn(`Manager profile: failed to parse ${key}`, err);
+      return { ...fallback };
+    }
+  }
+
+  function persistProfileState(nextProfile, nextSettings) {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(STORAGE_PROFILE_KEY, JSON.stringify(nextProfile));
+      window.localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(nextSettings));
+    } catch (err) {
+      console.warn("Manager profile: failed to persist to storage", err);
+    }
+  }
+
+  async function loadManagerProfile() {
+    setProfileLoading(true);
+    try {
+      const response = await http.get("/manager/profile");
+      const fromApiProfile = response?.profile || response || {};
+      const fromApiSettings = response?.settings || response?.preferences || {};
+      const nextProfile = { ...DEFAULT_MANAGER_PROFILE, ...fromApiProfile };
+      const nextSettings = { ...DEFAULT_MANAGER_SETTINGS, ...fromApiSettings };
+      setProfile(nextProfile);
+      setProfileDraft(nextProfile);
+      setProfileSettings(nextSettings);
+      setProfileSettingsDraft(nextSettings);
+      persistProfileState(nextProfile, nextSettings);
+    } catch (err) {
+      console.warn("Manager profile load error:", err);
+      const storedProfile = readFromStorage(STORAGE_PROFILE_KEY, DEFAULT_MANAGER_PROFILE);
+      const storedSettings = readFromStorage(STORAGE_SETTINGS_KEY, DEFAULT_MANAGER_SETTINGS);
+      setProfile(storedProfile);
+      setProfileDraft(storedProfile);
+      setProfileSettings(storedSettings);
+      setProfileSettingsDraft(storedSettings);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function saveManagerProfile() {
+    setProfileSaving(true);
+    setProfileMessage(null);
+    const payload = { ...profileDraft, settings: profileSettingsDraft };
+    try {
+      const response = await http.put("/manager/profile", payload);
+      const nextProfile = { ...profileDraft, ...(response?.profile || {}) };
+      const nextSettings = {
+        ...profileSettingsDraft,
+        ...(response?.settings || response?.preferences || {}),
+      };
+      setProfile(nextProfile);
+      setProfileDraft(nextProfile);
+      setProfileSettings(nextSettings);
+      setProfileSettingsDraft(nextSettings);
+      persistProfileState(nextProfile, nextSettings);
+      setProfileMessage({ type: "success", text: "Profile updated successfully." });
+    } catch (err) {
+      console.error("Manager profile save error:", err);
+      const nextProfile = { ...profileDraft };
+      const nextSettings = { ...profileSettingsDraft };
+      setProfile(nextProfile);
+      setProfileDraft(nextProfile);
+      setProfileSettings(nextSettings);
+      setProfileSettingsDraft(nextSettings);
+      persistProfileState(nextProfile, nextSettings);
+      setProfileMessage({
+        type: "warning",
+        text: `Saved locally. Server update failed: ${err.message}`,
+      });
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  const handleProfileChange = (field, value) => {
+    setProfileDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSettingsChange = (field, value) => {
+    setProfileSettingsDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const resetProfileDraft = () => {
+    setProfileDraft(profile);
+    setProfileSettingsDraft(profileSettings);
+    setProfileMessage(null);
+  };
+
+  const profileDirty = useMemo(
+    () =>
+      JSON.stringify(profileDraft) !== JSON.stringify(profile) ||
+      JSON.stringify(profileSettingsDraft) !== JSON.stringify(profileSettings),
+    [profileDraft, profile, profileSettingsDraft, profileSettings]
+  );
+  const profileBusy = profileLoading || profileSaving;
+  const disableSaveProfile = !profileDirty || profileSaving;
+  const disableResetProfile = !profileDirty || profileBusy;
 
   // Metrics for top cards (safe when employees isn't an array)
   const metrics = useMemo(() => {
@@ -279,9 +435,11 @@ export default function ManagerDashboard({ onLogout }) {
       {/* Sidebar */}
       <aside
         ref={sidebarRef}
-        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-green-50 border-r border-green-100 flex flex-col shadow-lg transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-green-50 border-r border-green-100 flex flex-col shadow-lg transform transition-transform duration-300 ease-in-out md:transition-[transform,width] ${
+          sidebarOpen
+            ? "translate-x-0 md:translate-x-0 md:w-64 md:pointer-events-auto"
+            : "-translate-x-full md:translate-x-0 md:w-0 md:pointer-events-none"
+        } md:overflow-hidden`}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-green-100">
           <div className="flex items-center gap-3">
@@ -347,10 +505,11 @@ export default function ManagerDashboard({ onLogout }) {
             {/* Hamburger */}
             <button
               onClick={() => setSidebarOpen((prev) => !prev)}
-              className="md:hidden text-slate-700 hover:text-slate-900"
+              className="text-slate-700 hover:text-slate-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
               aria-label="Toggle sidebar"
+              aria-pressed={sidebarOpen}
             >
-              <Menu size={24} />
+              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
 
             <img src={logo} alt="Logo" className="h-10" />
@@ -648,8 +807,293 @@ export default function ManagerDashboard({ onLogout }) {
 
           {activeTab === "profile" && (
             <div className="bg-white rounded-2xl p-6 shadow border">
-              <h2 className="text-lg font-semibold mb-2">Profile</h2>
-              <p className="text-sm text-slate-600">Manager profile & settings go here.</p>
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-800">Manager Profile</h2>
+                    <p className="text-sm text-slate-500">
+                      Keep your contact details and notification preferences up to date.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={resetProfileDraft}
+                      disabled={disableResetProfile}
+                      className={`px-4 py-2 rounded-lg border text-sm transition ${
+                        disableResetProfile
+                          ? "border-slate-200 text-slate-300 cursor-not-allowed"
+                          : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={saveManagerProfile}
+                      disabled={disableSaveProfile}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        disableSaveProfile
+                          ? "bg-emerald-200 text-emerald-800 cursor-not-allowed"
+                          : "bg-emerald-600 text-white hover:bg-emerald-700"
+                      }`}
+                    >
+                      {profileSaving ? "Saving..." : "Save changes"}
+                    </button>
+                  </div>
+                </div>
+
+                {profileMessage && (
+                  <div
+                    className={`rounded-lg border px-4 py-3 text-sm ${
+                      profileMessage.type === "success"
+                        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                        : "border-amber-100 bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {profileMessage.text}
+                  </div>
+                )}
+
+                {profileLoading && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                    Loading latest profile...
+                  </div>
+                )}
+
+                <div className="flex flex-col lg:flex-row gap-6">
+                  <div className="flex-1 space-y-6">
+                    <section className="border border-slate-100 rounded-xl p-5">
+                      <h3 className="text-base font-semibold text-slate-800 mb-4">Basic information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Full name</span>
+                          <input
+                            type="text"
+                            value={profileDraft.name}
+                            onChange={(e) => handleProfileChange("name", e.target.value)}
+                            placeholder="e.g. Anish Reddy"
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                            disabled={profileBusy}
+                          />
+                        </label>
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Job title</span>
+                          <input
+                            type="text"
+                            value={profileDraft.title}
+                            onChange={(e) => handleProfileChange("title", e.target.value)}
+                            placeholder="e.g. People Operations Manager"
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                            disabled={profileBusy}
+                          />
+                        </label>
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Email</span>
+                          <input
+                            type="email"
+                            value={profileDraft.email}
+                            onChange={(e) => handleProfileChange("email", e.target.value)}
+                            placeholder="manager@yvidhya.com"
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                            disabled={profileBusy}
+                          />
+                        </label>
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Phone</span>
+                          <input
+                            type="tel"
+                            value={profileDraft.phone}
+                            onChange={(e) => handleProfileChange("phone", e.target.value)}
+                            placeholder="+91 90000 00000"
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                            disabled={profileBusy}
+                          />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="border border-slate-100 rounded-xl p-5">
+                      <h3 className="text-base font-semibold text-slate-800 mb-4">Work preferences</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Team name</span>
+                          <input
+                            type="text"
+                            value={profileDraft.teamName}
+                            onChange={(e) => handleProfileChange("teamName", e.target.value)}
+                            placeholder="e.g. People Ops"
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                            disabled={profileBusy}
+                          />
+                        </label>
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Location</span>
+                          <input
+                            type="text"
+                            value={profileDraft.location}
+                            onChange={(e) => handleProfileChange("location", e.target.value)}
+                            placeholder="City, Country"
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                            disabled={profileBusy}
+                          />
+                        </label>
+                        <label className="text-sm text-slate-600 flex flex-col gap-2">
+                          <span className="font-medium text-slate-700">Timezone</span>
+                          <select
+                            value={profileDraft.timezone}
+                            onChange={(e) => handleProfileChange("timezone", e.target.value)}
+                            className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 bg-white"
+                            disabled={profileBusy}
+                          >
+                            {MANAGER_TIMEZONES.map((tz) => (
+                              <option key={tz.value} value={tz.value}>
+                                {tz.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <label className="text-sm text-slate-600 flex flex-col gap-2">
+                            <span className="font-medium text-slate-700">Work day starts</span>
+                            <input
+                              type="time"
+                              value={profileDraft.workingHoursStart}
+                              onChange={(e) => handleProfileChange("workingHoursStart", e.target.value)}
+                              className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                              disabled={profileBusy}
+                            />
+                          </label>
+                          <label className="text-sm text-slate-600 flex flex-col gap-2">
+                            <span className="font-medium text-slate-700">Work day ends</span>
+                            <input
+                              type="time"
+                              value={profileDraft.workingHoursEnd}
+                              onChange={(e) => handleProfileChange("workingHoursEnd", e.target.value)}
+                              className="border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                              disabled={profileBusy}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="border border-slate-100 rounded-xl p-5">
+                      <h3 className="text-base font-semibold text-slate-800 mb-4">Notifications and automation</h3>
+                      <div className="space-y-3">
+                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-600 hover:border-emerald-200 transition">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300"
+                            checked={profileSettingsDraft.emailNotifications}
+                            onChange={(e) => handleSettingsChange("emailNotifications", e.target.checked)}
+                            disabled={profileBusy}
+                          />
+                          <div>
+                            <div className="font-medium text-slate-700">Email alerts</div>
+                            <p className="text-xs text-slate-500">
+                              Get an email when a timesheet or leave request needs your review.
+                            </p>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-600 hover:border-emerald-200 transition">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300"
+                            checked={profileSettingsDraft.slackNotifications}
+                            onChange={(e) => handleSettingsChange("slackNotifications", e.target.checked)}
+                            disabled={profileBusy}
+                          />
+                          <div>
+                            <div className="font-medium text-slate-700">Slack reminders</div>
+                            <p className="text-xs text-slate-500">
+                              Send a direct message when approvals are pending for more than 48 hours.
+                            </p>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-600 hover:border-emerald-200 transition">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300"
+                            checked={profileSettingsDraft.weeklyDigest}
+                            onChange={(e) => handleSettingsChange("weeklyDigest", e.target.checked)}
+                            disabled={profileBusy}
+                          />
+                          <div>
+                            <div className="font-medium text-slate-700">Weekly digest</div>
+                            <p className="text-xs text-slate-500">
+                              Receive a summary each Monday with team availability and pending actions.
+                            </p>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-600 hover:border-emerald-200 transition">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300"
+                            checked={profileSettingsDraft.autoApproveShortLeaves}
+                            onChange={(e) => handleSettingsChange("autoApproveShortLeaves", e.target.checked)}
+                            disabled={profileBusy}
+                          />
+                          <div>
+                            <div className="font-medium text-slate-700">Auto approve short leave</div>
+                            <p className="text-xs text-slate-500">
+                              Automatically approve casual leave requests of one day or less.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+
+                  <aside className="w-full lg:w-80">
+                    <div className="border border-slate-100 rounded-xl p-5 bg-slate-50/75">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xl font-semibold">
+                          {initialsFromName(profileDraft.name)}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-lg text-slate-800">
+                            {profileDraft.name || "Manager"}
+                          </div>
+                          <div className="text-sm text-slate-500">
+                            {profileDraft.title || "People Operations Manager"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2 text-sm text-slate-600">
+                        <div>
+                          <span className="font-medium text-slate-700">Email: </span>
+                          {profileDraft.email || "Not set"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">Phone: </span>
+                          {profileDraft.phone || "Not set"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">Team: </span>
+                          {profileDraft.teamName || "Unassigned"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">Timezone: </span>
+                          {profileDraft.timezone}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">Work hours: </span>
+                          {profileDraft.workingHoursStart} - {profileDraft.workingHoursEnd}
+                        </div>
+                      </div>
+
+                      <div className="mt-5 border-t border-slate-200 pt-4 space-y-2 text-xs text-slate-500">
+                        <div>Weekly digest: {profileSettingsDraft.weeklyDigest ? "On" : "Off"}</div>
+                        <div>Email alerts: {profileSettingsDraft.emailNotifications ? "On" : "Off"}</div>
+                        <div>Slack reminders: {profileSettingsDraft.slackNotifications ? "On" : "Off"}</div>
+                        <div>
+                          Auto approve short leave: {profileSettingsDraft.autoApproveShortLeaves ? "Enabled" : "Disabled"}
+                        </div>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+              </div>
             </div>
           )}
 
@@ -678,6 +1122,18 @@ export default function ManagerDashboard({ onLogout }) {
       `}</style>
     </div>
   );
+}
+
+function initialsFromName(name) {
+  if (!name) return "MG";
+  const parts = String(name)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  const initials = parts.map((part) => part.charAt(0).toUpperCase());
+  const value = initials.join("");
+  return value || "MG";
 }
 
 /* Helper subcomponents kept at bottom (unchanged appearance) */
